@@ -33,7 +33,7 @@ jobs:
           $iscc = Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'
           if (-not (Test-Path $iscc)) { throw "ISCC.exe introuvable : $iscc" }
 
-      - name: Compiler, emballer et publier deux versions de test
+      - name: Compiler et publier la troisième version de test
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
@@ -41,7 +41,7 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $repo = '${{ github.repository }}'
           $iscc = Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'
-          foreach ($build in @(1, 2)) {
+          foreach ($build in @(3)) {
             $tag = "v1.7.0-test.$build"
             $publishDir = Join-Path $env:GITHUB_WORKSPACE "build\test$build"
             $outputDir = Join-Path $env:GITHUB_WORKSPACE "output\test$build"
@@ -68,7 +68,7 @@ jobs:
               if ($LASTEXITCODE -ne 0) { throw "Mise à jour GitHub Release échouée" }
             }
             else {
-              gh release create "$tag" "$installer" --repo $repo --title "EssieuPilot - test de mise à jour $build" --prerelease --notes "Édition de test indépendante de la version 1.6.1. Code source public. Le bouton Mises à jour permet de passer de test.1 à test.2 ; simulation sans commandes physiques ATS ni Convoi. Pas de signature numérique."
+              gh release create "$tag" "$installer" --repo $repo --title "EssieuPilot - test de mise à jour $build" --prerelease --notes "Édition de test indépendante de la version 1.6.1. Code source public. Le bouton Mises à jour permet de passer de test.2 à test.3 et de vérifier la conservation des profils ; simulation sans commandes physiques ATS ni Convoi. Pas de signature numérique."
               if ($LASTEXITCODE -ne 0) { throw "Création GitHub Release échouée pour $tag" }
             }
           }

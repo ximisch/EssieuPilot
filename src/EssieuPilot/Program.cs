@@ -32,7 +32,9 @@ internal sealed record UpdateCandidate(string Tag, string Url, string Sha256);
 
 public sealed class MainWindow : Form
 {
-#if TEST_VERSION_2
+#if TEST_VERSION_3
+    private const string TechnicalVersion = "1.7.0-test.3";
+#elif TEST_VERSION_2
     private const string TechnicalVersion = "1.7.0-test.2";
 #else
     private const string TechnicalVersion = "1.7.0-test.1";
@@ -335,6 +337,7 @@ public sealed class MainWindow : Form
         _install.Enabled = _update is not null;
         card.Controls.Add(_install);
         card.Controls.Add(LabelAt("Un programme non signé peut déclencher SmartScreen.", 22, 245, 674, 26, 10, Muted));
+        card.Controls.Add(LabelAt("Profils chargés : " + _profiles.Count + " | Profil actif : " + _profile.Name, 22, 275, 674, 26, 10, Aqua));
         _status.Text = "Le test n'installe aucune DLL dans ATS.";
     }
 
