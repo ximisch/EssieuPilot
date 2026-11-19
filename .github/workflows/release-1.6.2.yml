@@ -1,0 +1,81 @@
+name: Publier EssieuPilot 1.6.2 pour le test de mise à jour
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/release-1.6.2.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Télécharger le binaire officiel 1.6.1 depuis GitHub Releases
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p release
+          gh release download v1.6.1 --repo "$GITHUB_REPOSITORY" --pattern 'Installer_EssieuPilot.exe' --dir release
+          printf '%s  %s\n' 'bf65000cde9e32f93011ead432a412033015ff1be128444820392eabf4280450' 'release/Installer_EssieuPilot.exe' | sha256sum -c -
+
+      - name: Préparer exactement le candidat 1.6.2 déjà envoyé et vérifier SHA-256
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib
+          import struct
+          from pathlib import Path
+
+          path = Path("release/Installer_EssieuPilot.exe")
+          original = path.read_bytes()
+          assert len(original) == 7335424, "taille inattendue"
+          assert hashlib.sha256(original).hexdigest() == "bf65000cde9e32f93011ead432a412033015ff1be128444820392eabf4280450"
+          assert original[:2] == b"MZ"
+          pe = struct.unpack_from("<I", original, 0x3c)[0]
+          assert original[pe:pe+4] == b"PE\x00\x00"
+          assert struct.unpack_from("<H", original, pe + 4)[0] == 0x8664
+          optional = pe + 24
+          assert struct.unpack_from("<H", original, optional)[0] == 0x20b
+          security = optional + 112 + 8*4
+          assert struct.unpack_from("<II", original, security) == (0, 0), "EXE signé : modification interdite"
+          assert struct.unpack_from("<I", original, optional + 64)[0] == 0, "checksum PE non nul"
+
+          positions = [3699004, 3733954, 3842905]
+          assert original.count(b"1.6.1") == 3
+          patched = bytearray(original)
+          for offset in positions:
+              assert original[offset-4:offset+1] == b"1.6.1"
+              patched[offset] = ord("2")
+          candidate = bytes(patched)
+          assert sum(a != b for a, b in zip(original, candidate)) == 3
+          assert candidate.count(b"1.6.1") == 0
+          assert candidate.count(b"1.6.2") == 3
+          expected = "f8bb61b07d83e4f6e9324f07972133a3efacab233b82febd66b9304961f1e29b"
+          assert hashlib.sha256(candidate).hexdigest() == expected, "empreinte du candidat différente"
+          path.write_bytes(candidate)
+          print("Candidat 1.6.2 vérifié :", len(candidate), "octets, sha256", expected)
+          PY
+
+      - name: Publier v1.6.2 officiellement pour que la 1.6.1 la détecte
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if gh release view v1.6.2 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo 'v1.6.2 déjà publiée : refus de remplacer une release existante.'
+            exit 1
+          fi
+          gh release create v1.6.2 release/Installer_EssieuPilot.exe \
+            --repo "$GITHUB_REPOSITORY" \
+            --title 'EssieuPilot 1.6.2 — test de mise à jour intégrée' \
+            --notes 'Version de test du mécanisme de mise à jour de la 1.6.1. Le binaire est identique au candidat préalablement transmis, à l’exception des trois marqueurs de version passés de 1.6.1 à 1.6.2. Fonctions et réglages visés inchangés. Version non signée. Exécution et installation sur Windows à confirmer ; braquage physique ATS et mode Convoi non validés.' \
+            --latest
+          gh release view v1.6.2 --repo "$GITHUB_REPOSITORY"
