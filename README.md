@@ -27,3 +27,16 @@ Le numéro technique est visible dans **À propos / Mises à jour**, mais le nom
 - Compiler et vérifier l'exécutable dans une chaîne de build connue.
 - Tester la migration des profils et le retour arrière.
 - La vérification SHA-256 assure l'intégrité des fichiers, mais ne remplace pas une signature de code Windows.
+
+## Édition de test avec code source (nouveau)
+
+Pour ne **pas remplacer la version officielle 1.6.1**, une édition de test indépendante est maintenant construite avec son code source complet :
+
+- [Source Windows C# (.NET 8)](src/EssieuPilot/Program.cs)
+- [Projet de compilation](src/EssieuPilot/EssieuPilot.csproj)
+- [Installeur Inno Setup](installer/EssieuPilot-Test.iss)
+- [Compilation et publications automatiques](.github/workflows/test-release.yml)
+
+Après publication, installer la préversion `v1.7.0-test.1`, puis utiliser le bouton « Mises à jour » pour passer à `v1.7.0-test.2`. Le test utilise ses **propres dossiers** et sauvegarde ses profils séparément.
+
+**Limite :** cette édition est une reconstruction de test et non la source historique du programme 1.6.1 ; elle ne pilote pas physiquement les essieux d'ATS. Aucun fonctionnement en Convoi n'est démontré. Les exécutables doivent encore être testés sur un véritable PC Windows.
