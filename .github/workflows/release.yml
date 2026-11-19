@@ -1,9 +1,11 @@
-name: Publier EssieuPilot
+name: Publier EssieuPilot (Windows)
 
 on:
   push:
-    tags:
-      - 'v*'
+    branches: [main]
+    paths:
+      - '.github/workflows/release.yml'
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -12,33 +14,30 @@ jobs:
   publier:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-      - name: Vérifier le numéro de version
+      - name: Récupérer les fichiers
+        uses: actions/checkout@v4
+      - name: Reconstituer le fichier Windows et vérifier son intégrité
         shell: bash
         run: |
-          python3 - <<'PYCODE'
-          import os, re
-          from pathlib import Path
-          tag = os.environ['GITHUB_REF_NAME']
-          source = Path('updater.go').read_text(encoding='utf-8')
-          m = re.search(r'appVersion\s*=\s*"([0-9]+\.[0-9]+\.[0-9]+)"', source)
-          if not m or tag != 'v' + m.group(1):
-              raise SystemExit('Le tag ne correspond pas à appVersion dans updater.go')
-          PYCODE
-      - name: Tests Go
-        run: go test ./...
-      - name: Créer l’installateur Windows unique
-        env:
-          GOOS: windows
-          GOARCH: amd64
-          CGO_ENABLED: '0'
-        run: go build -trimpath -ldflags='-H windowsgui -s -w' -o Installer_EssieuPilot.exe .
-      - name: Publier la mise à jour pour tous les utilisateurs
+          set -euo pipefail
+          xz -dc releases/v1.6.1/Installer_EssieuPilot.exe.xz > Installer_EssieuPilot.exe
+          echo 'bf65000cde9e32f93011ead432a412033015ff1be128444820392eabf4280450  Installer_EssieuPilot.exe' | sha256sum -c -
+          file Installer_EssieuPilot.exe
+      - name: Publier la version officielle sur GitHub Releases
         uses: softprops/action-gh-release@v2
         with:
-          files: Installer_EssieuPilot.exe
-          generate_release_notes: true
+          tag_name: v1.6.1
+          name: EssieuPilot
+          draft: false
+          prerelease: false
           fail_on_unmatched_files: true
+          files: Installer_EssieuPilot.exe
+          body: |
+            Première publication d'EssieuPilot pour Windows 64 bits.
+
+            Installeur : Installer_EssieuPilot.exe
+
+            Fonctionnalités : interface, profils de remorques, simulation et recherche des mises à jour GitHub.
+
+            Important : le braquage physique dans ATS et le mode Convoi ne sont pas encore validés.
+            Le logiciel n'est pas signé numériquement.
