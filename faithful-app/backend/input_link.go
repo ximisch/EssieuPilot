@@ -20,6 +20,13 @@ type inputLinkSnapshot struct {
 	AnalogBinding          string `json:"analog_binding"`
 	ProfileSaved           bool   `json:"profile_saved"`
 	ATSForeground          bool   `json:"ats_foreground"`
+	ForegroundPID          uint32 `json:"foreground_pid"`
+	ATSProcessPID          uint32 `json:"ats_process_pid"`
+	FocusReason            string `json:"focus_reason"`
+	InputReason            string `json:"input_reason"`
+	InputMonitoringActive  bool   `json:"input_monitoring_active"`
+	LeftVirtualKey         uint16 `json:"left_virtual_key"`
+	RightVirtualKey        uint16 `json:"right_virtual_key"`
 	ManualArmed            bool   `json:"manual_armed"`
 	ATSRunning             bool   `json:"ats_running"`
 	ActivationCount        uint64 `json:"activation_count"`
