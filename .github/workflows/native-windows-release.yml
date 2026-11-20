@@ -74,7 +74,7 @@ jobs:
       - name: Keep Windows test builds available for diagnosis
         uses: actions/upload-artifact@v4
         with:
-          name: EssieuPilot-Native-2.0.0-test1
+          name: EssieuPilot-Native-2.0.0-test2
           path: |
             release/Installer_EssieuPilot.exe
             release/EssieuPilot_Native_Installateur_ZIP.zip
@@ -86,12 +86,15 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $ErrorActionPreference = 'Stop'
-          $tag='v2.0.0-native.1'
+          $tag='v2.0.0-native.2'
           gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null
           if ($LASTEXITCODE -eq 0) { throw "Native test release already exists: $tag" }
           $notes=@'
-          # EssieuPilot — nouvelle application Windows native (essai)
+          # EssieuPilot — mise à jour de la nouvelle application native (essai n°2)
           
+          - Cette édition v2.0.0-native.2 peut être installée depuis le bouton Mises à jour de v2.0.0-native.1, qui effectue un téléchargement vérifié SHA-256 avant de lancer le nouvel installateur.
+          - L'indicateur des mises à jour disponibles apparaît désormais dans le menu latéral.
+          - Diagnostic des erreurs d'interface Windows ajouté.
           - Interface Windows UNIQUE bleu nuit/turquoise reconstruite en C# / .NET 8 : tableau de bord, profils, commandes, connexions, mises à jour, paramètres et à propos.
           - Deux voyants directement dans la fenêtre principale : ATS lancé (amtrucks.exe) et accusé de direction par la DLL expérimentale s'il existe.
           - Aucune seconde fenêtre PowerShell, aucun serveur localhost ni WebView2.
@@ -103,6 +106,6 @@ jobs:
           - Installateur Windows autonome non signé. Un ZIP contenant l'installateur est fourni comme téléchargement de secours.
           - Ne pas effacer l'installation stable EssieuPilot 1.6.2 ni les profils originaux.
           '@
-          gh release create $tag release/Installer_EssieuPilot.exe release/EssieuPilot_Native_Installateur_ZIP.zip --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title 'EssieuPilot — essai de la nouvelle application native v2.0.0-native.1' --prerelease --notes $notes
+          gh release create $tag release/Installer_EssieuPilot.exe release/EssieuPilot_Native_Installateur_ZIP.zip --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title 'EssieuPilot — mise à jour native v2.0.0-native.2' --prerelease --notes $notes
           if ($LASTEXITCODE -ne 0) { throw 'Native test GitHub publication failed' }
           gh release view $tag --repo $env:GITHUB_REPOSITORY
