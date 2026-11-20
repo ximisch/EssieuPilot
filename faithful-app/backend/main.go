@@ -25,7 +25,7 @@ import (
 //go:embed web/*
 var frontend embed.FS
 
-const technicalVersion = "2.0.0-original.2"
+const technicalVersion = "2.0.0-original.3"
 
 type server struct {
 	telemetry telemetryBridge
@@ -188,6 +188,7 @@ func newServer(p profileStore) (*server, error) {
 	router.HandleFunc("GET /api/devices", s.getDevices)
 	router.HandleFunc("GET /api/telemetry", s.getTelemetry)
     router.HandleFunc("GET /api/status", s.getLiveStatus)
+    router.HandleFunc("GET /api/control-link", s.getInputLink)
 	router.HandleFunc("GET /api/ats/installations", s.getATSInstallations)
 	router.HandleFunc("GET /api/updates", s.getOriginalUpdates)
 	router.HandleFunc("POST /api/updates/install", s.installOriginalUpdate)
@@ -340,6 +341,10 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	// Stage 1: detect dynamically configured key/gamepad bindings and maintain
+	// the neutral IPC channel. No physical steering activation on ATS 1.62.
+	stopControl := startSteeringRuntime(s)
+	defer stopControl()
 	listener, err := net.Listen("tcp4", "127.0.0.1:0")
 	if err != nil {
 		log.Fatal(err)
