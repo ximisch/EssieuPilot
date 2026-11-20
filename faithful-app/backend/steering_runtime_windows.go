@@ -63,14 +63,13 @@ func detectATSForeground() atsFocusInfo {
 		return atsFocusInfo{Reason: "PID de la fenêtre active indisponible"}
 	}
 	result := atsFocusInfo{ForegroundPID:pid}
-	for _, gamePID := range atsProcessIDs() {
-		if result.ATSProcessPID == 0 { result.ATSProcessPID = gamePID }
-		if pid == gamePID {
-			result.IsATS = true
-			result.ATSProcessPID = gamePID
-			result.Reason = "Fenêtre ATS reconnue par son PID"
-			return result
-		}
+	ids := atsProcessIDs()
+	if len(ids) > 0 { result.ATSProcessPID = ids[0] }
+	if foregroundMatchesATS(pid, ids) {
+		result.IsATS = true
+		result.ATSProcessPID = pid
+		result.Reason = "Fenêtre ATS reconnue par son PID"
+		return result
 	}
 	// Fallback for Windows builds where Process32 enumeration is restricted.
 	h, _, _ := openProcess.Call(0x1000, 0, uintptr(pid))
@@ -94,6 +93,14 @@ func detectATSForeground() atsFocusInfo {
 	}
 	result.Reason = "Une autre application est au premier plan"
 	return result
+}
+
+func foregroundMatchesATS(activePID uint32, gamePIDs []uint32) bool {
+	if activePID == 0 { return false }
+	for _, gamePID := range gamePIDs {
+		if gamePID != 0 && activePID == gamePID { return true }
+	}
+	return false
 }
 
 func isForegroundATS() bool { return detectATSForeground().IsATS }
