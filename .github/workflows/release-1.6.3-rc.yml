@@ -1,4 +1,4 @@
-name: EssieuPilot 1.6.3 - original 1.6.2 UI, ATS companion (RC)
+name: EssieuPilot 1.6.3 - ATS process detection and original UI (RC2)
 on:
   push:
     branches: ['development/ats-integration']
@@ -137,9 +137,12 @@ jobs:
         shell: pwsh
         run: |
           Copy-Item integration/stable-1.6.3/Start-EssieuPilot.ps1 out/Start-EssieuPilot.ps1
+          Copy-Item integration/stable-1.6.3/Watch-ATS.ps1 out/Watch-ATS.ps1
+          powershell.exe -NoProfile -STA -ExecutionPolicy Bypass -File out/Watch-ATS.ps1 -SelfTest
+          if($LASTEXITCODE -ne 0){throw 'Test de détection ATS absent / présent / inconnu échoué'}
           Copy-Item integration/stable-1.6.3/LISEZ-MOI.txt out/LISEZ-MOI.txt
           foreach($f in @('out/EssieuPilot.exe','out/EssieuPilotController.exe','out/EssieuPilot.ico',
-              'out/Plugins ATS/EssieuPilotATS.dll','out/Plugins ATS/scs_telemetry_hub.dll','out/Start-EssieuPilot.ps1','out/LISEZ-MOI.txt')){
+              'out/Plugins ATS/EssieuPilotATS.dll','out/Plugins ATS/scs_telemetry_hub.dll','out/Start-EssieuPilot.ps1','out/Watch-ATS.ps1','out/LISEZ-MOI.txt')){
             if(-not(Test-Path $f)){throw "Fichier paquet absent: $f"}
           }
       - name: Construire installateur unique, sans toucher aux DLL ATS existantes
@@ -169,30 +172,33 @@ jobs:
       - name: Conserver artifact Windows pour validation
         uses: actions/upload-artifact@v4
         with:
-          name: EssieuPilot-1.6.3-rc1-Windows
+          name: EssieuPilot-1.6.3-rc2-Windows
           path: |
             output/Installer_EssieuPilot_1.6.3_Essai.exe
             output/Plugins_ATS_EssieuPilot_1.6.3.zip
           retention-days: 21
-      - name: Publier uniquement une préversion 1.6.3 RC, pas encore stable
+      - name: Publier uniquement la préversion 1.6.3 RC2, pas une version stable
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           $ErrorActionPreference='Stop'
-          $tag='v1.6.3-rc.1'
+          $tag='v1.6.3-rc.2'
           gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null
           if($LASTEXITCODE -eq 0){throw 'Une version identique existe déjà'}
           $notes=@'
-          # EssieuPilot 1.6.3 — candidat de validation (ATS 1.62)
+          # EssieuPilot 1.6.3 RC2 — détection du lancement ATS (sans DLL)
           
           ATTENTION : braquage physique non testé dans le vrai ATS, risque de crash. Cette version est une préversion, PAS la mise à jour stable officielle.
           
+          - **NOUVEAU** : détection de `amtrucks.exe` toutes les secondes SANS DLL ni télémétrie. Statut dans une icône près de l'horloge Windows ; clic droit ou double-clic pour lire ATS LANCÉ / ATS NON LANCÉ / ÉTAT INDISPONIBLE. Notification lors des changements si autorisée par Windows.
+          - **TEST CONSEILLÉ** : installer la préversion dans son dossier séparé, ouvrir EssieuPilot, lancer et fermer ATS et vérifier le statut. **Ne pas copier les DLL pour ce premier essai.**
+          - Test de processus présent/absent/indisponible exécuté durant la compilation Windows ; pas encore validé sur le PC de l'utilisateur.
           - Interface Windows identique à la version officielle 1.6.2 (uniquement trois caractères de version changés). Pas de reconstruction WebView2 ni nouveau launcher localhost.
           - Contrôleur ATS parallèle pour lecture des profils existants sans modification, prises de commandes clavier, joystick, manette et signal de direction IPC.
           - Les deux DLL et leurs licences sont livrées dans le dossier Plugins ATS de l'installation et dans un ZIP téléchargeable séparément. Aucun fichier n'est installé automatiquement dans ATS.
           - Commencer par tester l'ouverture de la GUI sans copier les DLL ATS, puis fermer le jeu, sauvegarder et copier facultativement EssieuPilotATS.dll et scs_telemetry_hub.dll dans American Truck Simulator/bin/win_x64/plugins.
-          - Lancer via le raccourci EssieuPilot - essai ATS pour que le contrôleur s'ouvre et se ferme avec la GUI.
+          - Lancer via le raccourci EssieuPilot - essai ATS pour que le contrôleur et le détecteur ATS s'ouvrent et se ferment avec la GUI.
           - Mode solo ATS 1.62, DirectX 11. F8 activation, F9 gauche, F10 droite par défaut ; consignes 14 deg/s, retour 7 deg/s, max 35 deg.
           - Braquage physique par REMORQUE, et non séparé par essieu. Aucune compatibilité Convoi prouvée.
           - Les fichiers ETS2LA existants ne sont ni modifiés ni supprimés. Garder Westplay retiré.
@@ -200,6 +206,6 @@ jobs:
           - Les diagnostics du contrôleur sont dans %LOCALAPPDATA%/EssieuPilot/diagnostics.
           - L'installation stable 1.6.2 est préservée et peut rester utilisée.
           '@
-          gh release create $tag output/Installer_EssieuPilot_1.6.3_Essai.exe output/Plugins_ATS_EssieuPilot_1.6.3.zip --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title 'EssieuPilot 1.6.3 - essai sur base officielle 1.6.2' --prerelease --notes $notes
+          gh release create $tag output/Installer_EssieuPilot_1.6.3_Essai.exe output/Plugins_ATS_EssieuPilot_1.6.3.zip --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title 'EssieuPilot 1.6.3 RC2 - détection ATS à tester' --prerelease --notes $notes
           if($LASTEXITCODE -ne 0){throw 'Publication GitHub échouée'}
           gh release view $tag --repo $env:GITHUB_REPOSITORY
