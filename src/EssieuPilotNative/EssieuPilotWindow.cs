@@ -143,6 +143,12 @@ internal sealed class EssieuPilotWindow : Form
         sideHelp.SetBounds(15, 536, 215, 45);
         sideHelp.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
         side.Controls.Add(sideHelp);
+        _updateHint.ForeColor = Aqua;
+        _updateHint.BackColor = Color.Transparent;
+        _updateHint.Font = new Font("Segoe UI", 9, FontStyle.Bold);
+        _updateHint.AutoEllipsis = true;
+        _updateHint.SetBounds(15, 491, 211, 37);
+        side.Controls.Add(_updateHint);
 
         var header = new Panel { Dock = DockStyle.Top, Height = 106, BackColor = Surface };
         var emblem = new Panel { Left = 23, Top = 27, Width = 53, Height = 46, BackColor = Color.FromArgb(21, 74, 81) };
