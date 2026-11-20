@@ -12,6 +12,14 @@ internal static class Program
         if (args.Length > 0 && args[0] == "--self-test")
             return NativeSelfTests.Run();
         ApplicationConfiguration.Initialize();
+        Application.ThreadException += (_, evt) =>
+        {
+            AppInfo.Log("Erreur interface: " + evt.Exception);
+            MessageBox.Show(evt.Exception.Message, "EssieuPilot", MessageBoxButtons.OK,
+                MessageBoxIcon.Error);
+        };
+        AppDomain.CurrentDomain.UnhandledException += (_, evt) =>
+            AppInfo.Log("Erreur inattendue: " + evt.ExceptionObject);
         Application.Run(new EssieuPilotWindow());
         return 0;
     }
@@ -20,8 +28,8 @@ internal static class Program
 internal static class AppInfo
 {
     public const string Name = "EssieuPilot";
-    public const string TechnicalVersion = "2.0.0-native.1";
-    public const int Build = 1;
+    public const string TechnicalVersion = "2.0.0-native.2";
+    public const int Build = 2;
     public const string GithubRepo = "ximisch/EssieuPilot";
     public static string SettingsDirectory =>
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "EssieuPilot-Native");
