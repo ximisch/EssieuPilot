@@ -298,7 +298,7 @@ func startSteeringRuntime(s *server) func() {
 				activationCount, leftCount, rightCount = 0, 0, 0
 				history = nil
 			}
-			if !gameRunning { manual = false }
+			manual = retainManualOnFocusChange(manual, gameRunning)
 			foreground := gameRunning && isForegroundATS()
 			if foreground {lastFocusTime = now}
 			snapshot := inputLinkSnapshot{
@@ -392,6 +392,13 @@ func startSteeringRuntime(s *server) func() {
 		}
 	}()
 	return func() { cancel(); <-done }
+}
+
+// Only leaving the ATS process entirely disarms the diagnostic. Switching
+// focus to EssieuPilot does not reset activation: the user must be able to
+// inspect the prior state after Alt+Tab.
+func retainManualOnFocusChange(manual, gameRunning bool) bool {
+	return manual && gameRunning
 }
 
 // risingEdge records one press per key-down transition. It does not
