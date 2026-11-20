@@ -1,6 +1,8 @@
 package main
 
 import (
+	"encoding/json"
+	"io"
 	"net/http"
 	"sync"
 	"time"
@@ -65,4 +67,51 @@ func formatInputEvent(name string, at time.Time) (string, string) {
 		return "", ""
 	}
 	return name, at.Format(time.RFC3339)
+}
+
+// User-confirmed local UI command, separate from the game input. This changes
+// ONLY the test-mode diagnostic; the IPC to ATS is always disabled in stage 1.
+var inputModeRequests = struct {
+	sync.Mutex
+	sequence uint64
+	enabled bool
+}{}
+
+func readInputModeRequest(lastSequence uint64) (uint64, bool, bool) {
+	inputModeRequests.Lock()
+	defer inputModeRequests.Unlock()
+	if inputModeRequests.sequence == lastSequence {
+		return lastSequence, false, false
+	}
+	return inputModeRequests.sequence, inputModeRequests.enabled, true
+}
+
+func (s *server) setInputMode(w http.ResponseWriter, r *http.Request) {
+	if !s.authorized(r) {
+		jsonReply(w, http.StatusForbidden, map[string]string{"error":"Commande refusée"})
+		return
+	}
+	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 512))
+	if err != nil {
+		jsonReply(w, http.StatusBadRequest, map[string]string{"error":"Commande invalide"})
+		return
+	}
+	var cmd struct { Enabled *bool `json:"enabled"` }
+	if err := json.Unmarshal(body, &cmd); err != nil || cmd.Enabled == nil {
+		jsonReply(w, http.StatusBadRequest, map[string]string{"error":"Mode de test invalide"})
+		return
+	}
+	if *cmd.Enabled && !statusATSRunning() {
+		jsonReply(w, http.StatusConflict, map[string]string{"error":"Lance ATS avant d'activer le contrôleur de test."})
+		return
+	}
+	inputModeRequests.Lock()
+	inputModeRequests.sequence++
+	inputModeRequests.enabled = *cmd.Enabled
+	inputModeRequests.Unlock()
+	jsonReply(w, http.StatusOK, map[string]any{
+		"ok": true, "enabled": *cmd.Enabled,
+		"physical_control_enabled": false,
+		"message": "Mode de diagnostic modifié, direction des roues non activée.",
+	})
 }
