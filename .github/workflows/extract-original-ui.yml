@@ -1,0 +1,49 @@
+name: Extract exact original EssieuPilot 1.6.2 interface for faithful reuse
+on:
+  push:
+    branches: ['development/original-ui-port']
+    paths:
+      - '.github/workflows/extract-original-ui.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  extract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Extract only verified original UI assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          cat reconstruction/beta_sources.part*.b64 | tr -d '\n' | base64 -d > /tmp/source.tar.xz
+          echo '77c2376d6f8da59093dfdd08ecc1b8f54c7ff1db1fa0b2a6efe76c4d48a0d00b  /tmp/source.tar.xz' | sha256sum -c -
+          tar xJf /tmp/source.tar.xz
+          mkdir -p /tmp/release
+          gh release download v1.6.2 -R "$GITHUB_REPOSITORY" --pattern Installer_EssieuPilot.exe --dir /tmp/release
+          echo 'f8bb61b07d83e4f6e9324f07972133a3efacab233b82febd66b9304961f1e29b  /tmp/release/Installer_EssieuPilot.exe' | sha256sum -c -
+          python3 recover_assets.py /tmp/release/Installer_EssieuPilot.exe backend/web
+          mkdir -p original-ui-reference
+          cp -r backend/web/. original-ui-reference/
+          find original-ui-reference -type f -maxdepth 4 -printf '%p %s bytes\n'
+          test -f original-ui-reference/modern.js
+          test -f original-ui-reference/index.html
+          du -sh original-ui-reference
+          cat > original-ui-reference/README.md <<'TXT'
+          # Original EssieuPilot 1.6.2 interface reference
+
+          These files are copied directly from the SHA256-verified official
+          EssieuPilot v1.6.2 installer with the original recovery script.
+          This directory is a design/source baseline only, NOT a working plugin.
+          Do not replace the official release, and never modify the user's profiles.
+          TXT
+      - name: Commit authentic interface resources for native host work
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add original-ui-reference/
+          git commit -m 'chore(ui): preserve extracted original 1.6.2 frontend resources as faithful visual baseline'
+          git push origin HEAD:development/original-ui-port
