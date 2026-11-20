@@ -30,7 +30,7 @@ text=text.replace(before,after)
 marker="func startSteeringRuntime(s *server) func() {"
 if text.count(marker)!=1:
     raise RuntimeError("Cannot locate prototype runtime")
-text=text.split(marker)[0]+r'''
+text=text.split(marker)[0].replace('type runtimeProfile struct {\n', 'type runtimeProfile struct {\n    Name             string           `json:"name"`\n',1)+r'''
 // Stage-1 input routing: read the saved active profile every 250ms.
 // Uses the same mapping format as the real physical runtime: KEY:* and
 // DEVICE:*; the physical DLL never hardcodes F8/F9/F10.
@@ -80,7 +80,7 @@ func startSteeringRuntime(s *server) func() {
             snapshot:=inputLinkSnapshot{
                 ServiceRunning:true, IPCReady:bridge!=nil,
                 ProfileSaved:profileLoaded && found,
-                ProfileName: active.ID,
+                ProfileName: active.Name,
                 ToggleBinding:active.ToggleKey,
                 LeftBinding:active.LeftKey,
                 RightBinding:active.RightKey,
