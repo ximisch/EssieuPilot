@@ -1,10 +1,11 @@
-name: EssieuPilot ATS 1.62 — experimental installer release
+name: EssieuPilot ATS 1.62 — WebView2 startup fix installer
 
 on:
   push:
     branches: ['development/ats-integration']
     paths:
       - '.github/workflows/ats-test-release.yml'
+      - 'integration/host/**'
   workflow_dispatch:
 
 permissions:
@@ -80,6 +81,18 @@ jobs:
           New-Item -Force -ItemType Directory 'host/Assets' | Out-Null
           Copy-Item backend/web/EssieuPilot.ico host/Assets/EssieuPilot.ico
 
+      - name: Corriger le lancement WebView2 et activer le mode navigateur de secours
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          python -c "import base64,zlib,hashlib,pathlib; blob=base64.b64decode(pathlib.Path('integration/host/startup_patch.zlib.b64').read_text().strip()); patch=zlib.decompress(blob); assert hashlib.sha256(patch).hexdigest()=='0853a9f7f081ab1b56d10d0ae72e75699bc3fd4ac225c981300acb5e1c1f0544'; pathlib.Path('fix_startup.py').write_bytes(patch)"
+          if ($LASTEXITCODE -ne 0) {throw 'Impossible de décoder le correctif hôte vérifié'}
+          python fix_startup.py
+          if ($LASTEXITCODE -ne 0) {throw "Correction du lancement EssieuPilot impossible"}
+          $patched=Get-Content -Raw host/Program.cs
+          if (-not $patched.Contains('LaunchBrowserFallback') -or -not $patched.Contains('WebView2-beta3') -or -not $patched.Contains('diagnostics')) {throw 'Correctif WebView2 incomplet'}
+          Write-Host 'WebView2 isolated; safe browser fallback and startup.log enabled.'
+
       - name: Corriger le diagnostic de présence ATS et DLL
         shell: pwsh
         run: |
@@ -131,7 +144,7 @@ jobs:
           $file='backend/main.go'
           $src=Get-Content -Raw $file
           if (-not $src.Contains('1.7.0-beta.1')) { throw 'Version précédente introuvable' }
-          $src=$src.Replace('1.7.0-beta.1','1.7.0-beta.2')
+          $src=$src.Replace('1.7.0-beta.1','1.7.0-beta.3')
           $src=$src.Replace('BÊTA 1.7.0 — contrôle ATS physique NON disponible','ESSAI ATS 1.62 — BRAQUAGE PHYSIQUE EXPÉRIMENTAL')
           $src=$src.Replace('Aucune télémétrie ATS accessible. Le module SCS Telemetry Hub doit être installé et ATS démarré. Aucun pilotage physique actif.','Aucune télémétrie accessible. Vérifier SCS Telemetry Hub et ATS lancé.')
           Set-Content -LiteralPath $file -Encoding UTF8 -Value $src
@@ -219,7 +232,7 @@ jobs:
           $env:EP_PUBLISH_DIR = (Resolve-Path 'out').Path
           New-Item -Force -ItemType Directory output | Out-Null
           $env:EP_OUT_DIR = (Resolve-Path 'output').Path
-          $env:EP_APP_VERSION = '1.7.0-beta.2'
+          $env:EP_APP_VERSION = '1.7.0-beta.3'
           & $iscc 'integration/installer/EssieuPilot-ATS-Test.iss'
           if ($LASTEXITCODE -ne 0) { throw 'Compilation de l installateur échouée' }
           $file='output/Installer_EssieuPilot_ATS_Test.exe'
@@ -245,7 +258,7 @@ jobs:
       - name: Déposer l'installateur pour audit
         uses: actions/upload-artifact@v4
         with:
-          name: EssieuPilot-ATS-1.62-Experimental-v1.7.0-beta.2
+          name: EssieuPilot-ATS-1.62-Experimental-v1.7.0-beta.3
           path: output/Installer_EssieuPilot_ATS_Test.exe
           retention-days: 21
 
@@ -255,16 +268,18 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $ErrorActionPreference='Stop'
-          $tag='v1.7.0-beta.2'
+          $tag='v1.7.0-beta.3'
           gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null
           if ($LASTEXITCODE -eq 0) { throw "La version $tag existe déjà : refus de remplacement" }
           $notes=@'
-          ## EssieuPilot 1.7.0-beta.2 — PREMIER ESSAI ATS 1.62 (Windows)
+          ## EssieuPilot 1.7.0-beta.3 — PREMIER ESSAI ATS 1.62 (Windows)
           
           **Attention : cette préversion n'a pas été essayée dans le vrai jeu. RISQUE DE CRASH.**
           
           **Téléchargement :** Installer_EssieuPilot_ATS_Test.exe (installateur unique).
           
+          - **Correctif de démarrage après erreur WebView2 `0x80004004 E_ABORT`** : dossier navigateur isolé, suppression d'une fermeture prématurée au lancement et repli automatique sur le navigateur par défaut si l'interface intégrée échoue.
+          - **Journal du lancement** : `%LOCALAPPDATA%\\EssieuPilot-Beta\\diagnostics\\startup.log` ; à envoyer si la fenêtre se ferme encore.
           - Fenêtre EssieuPilot et profils privés, séparés de la version officielle 1.6.2.
           - Détection d'ATS et télémétrie SCS via `scs_telemetry_hub.dll`.
           - Une DLL `EssieuPilotATS.dll` issue d'un code source MIT (TS Extra Utilities), adaptée à la communication avec EssieuPilot ; compilation Windows et tests IPC automatisés réussis.
@@ -277,8 +292,8 @@ jobs:
           - **Si ATS plante : fermer le jeu, retirer les deux DLL par le raccourci du menu Démarrer ou déplacer uniquement `EssieuPilotATS.dll` et `scs_telemetry_hub.dll` de `bin\win_x64\plugins` ; envoyer `game.log.txt` et `game.crash.txt`.**
           - Logiciel Windows non signé ; le message SmartScreen est possible.
           
-          Cette publication permet **un essai volontaire**. Elle ne constitue PAS la version complète et validée demandée à terme.
+          **Commence par vérifier que l'interface s'ouvre**, avant d'installer les DLL ATS. Cette publication permet **un essai volontaire**. Elle ne constitue PAS la version complète et validée demandée à terme.
           '@
-          gh release create $tag output/Installer_EssieuPilot_ATS_Test.exe --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title 'EssieuPilot v1.7.0-beta.2 — essai physique ATS 1.62 (expérimental)' --prerelease --notes $notes
+          gh release create $tag output/Installer_EssieuPilot_ATS_Test.exe --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title 'EssieuPilot v1.7.0-beta.3 — essai physique ATS 1.62 (expérimental)' --prerelease --notes $notes
           if ($LASTEXITCODE -ne 0) {throw 'Publication GitHub échouée'}
           gh release view $tag --repo $env:GITHUB_REPOSITORY
