@@ -115,7 +115,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) {throw 'Cannot wire Go controller to backend'}
           Push-Location backend
           try {
-            gofmt -w steering_*.go main.go
+            gofmt -w steering_protocol.go steering_protocol_test.go steering_bridge_windows.go steering_bridge_other.go steering_runtime_windows.go steering_runtime_other.go main.go
           } finally { Pop-Location }
 
       - name: Tests du moteur et de la télémétrie
