@@ -128,6 +128,9 @@
           ' · Droite : ' + (c.right_count || 0);
         const allowed = c.steering_input_allowed ?
           'AUTORISÉ (test, sans mouvement de roue)' : 'BLOQUÉ (INACTIF)';
+        const held = c.held_direction === 'GAUCHE' || c.held_direction === 'DROITE' ?
+          c.held_direction + ' (touche maintenue)' :
+          'AUCUNE (relâchée, inactive ou hors ATS)';
         const admitted = 'Gauche : ' + (c.allowed_left_count || 0) +
           ' · Droite : ' + (c.allowed_right_count || 0);
         const recent = Array.isArray(c.input_history) && c.input_history.length ?
@@ -141,6 +144,7 @@
           '\n' + windowsInfo +
           '\nTouches détectées (même si inactif) : ' + counts +
           '\nCommandes de direction : ' + allowed +
+          '\nDirection maintenue (échantillon actuel) : ' + held +
           '\nCompteurs autorisés (uniquement ACTIF) : ' + admitted +
           '\n' + last + '\nHistorique : ' + recent +
           '\nCanal IPC de test uniquement : aucune direction envoyée aux roues d’ATS.' +
