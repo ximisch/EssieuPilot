@@ -57,8 +57,7 @@ func gameProcessRunning() bool {
 ''')
 patch('backend/ats_other.go',[], '\nfunc gameProcessRunning() bool { return false }\n')
 patch('backend/telemetry.go', [
-    ('Connected       bool              `json:"connected"`','Connected       bool              `json:"connected"`
-    GameRunning     bool              `json:"game_running"`'),
+    ('Connected       bool              `json:"connected"`','Connected       bool              `json:"connected"`\n    GameRunning     bool              `json:"game_running"`'),
     ('out := telemetryResult{Trailers: []detectedTrailer{}, Source: "SCS Telemetry Hub (optionnel)", Note: "Aucune télémétrie ATS accessible. Le module SCS Telemetry Hub doit être installé et ATS démarré. Aucun pilotage physique actif."}',
      '''out := telemetryResult{Trailers: []detectedTrailer{}, GameRunning: gameProcessRunning(), Source: "SCS Telemetry Hub (optionnel)", Note: "Aucune télémétrie ATS accessible. Le module SCS Telemetry Hub doit être installé et ATS démarré. Aucun pilotage physique actif."}
     if out.GameRunning {
