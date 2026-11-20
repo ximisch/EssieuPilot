@@ -42,6 +42,7 @@ Source: "{#EP_PUBLISH_DIR}\EssieuPilot.exe"; DestDir: "{app}"; Flags: ignorevers
 Source: "{#EP_PUBLISH_DIR}\EssieuPilotController.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#EP_PUBLISH_DIR}\EssieuPilot.ico"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#EP_PUBLISH_DIR}\Start-EssieuPilot.ps1"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#EP_PUBLISH_DIR}\Watch-ATS.ps1"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#EP_PUBLISH_DIR}\LISEZ-MOI.txt"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#EP_PUBLISH_DIR}\Plugins ATS\*"; DestDir: "{app}\Plugins ATS"; Flags: ignoreversion recursesubdirs createallsubdirs
 
@@ -49,13 +50,13 @@ Source: "{#EP_PUBLISH_DIR}\Plugins ATS\*"; DestDir: "{app}\Plugins ATS"; Flags: 
 Name: "desktopicon"; Description: "Créer un raccourci d'essai sur le Bureau"; GroupDescription: "Raccourci facultatif :"; Flags: unchecked
 
 [Icons]
-Name: "{autoprograms}\EssieuPilot - essai ATS"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\Start-EssieuPilot.ps1"""; IconFilename: "{app}\EssieuPilot.exe"; WorkingDir: "{app}"
+Name: "{autoprograms}\EssieuPilot - essai ATS"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File ""{app}\Start-EssieuPilot.ps1"""; IconFilename: "{app}\EssieuPilot.exe"; WorkingDir: "{app}"
 Name: "{autoprograms}\EssieuPilot - Plugins ATS"; Filename: "{app}\Plugins ATS"
 Name: "{autoprograms}\EssieuPilot - Instructions"; Filename: "{app}\LISEZ-MOI.txt"
-Name: "{autodesktop}\EssieuPilot - essai ATS"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\Start-EssieuPilot.ps1"""; IconFilename: "{app}\EssieuPilot.exe"; WorkingDir: "{app}"; Tasks: desktopicon
+Name: "{autodesktop}\EssieuPilot - essai ATS"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File ""{app}\Start-EssieuPilot.ps1"""; IconFilename: "{app}\EssieuPilot.exe"; WorkingDir: "{app}"; Tasks: desktopicon
 
 [Run]
-Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\Start-EssieuPilot.ps1"""; Description: "Ouvrir EssieuPilot"; Flags: nowait postinstall skipifsilent
+Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File ""{app}\Start-EssieuPilot.ps1"""; Description: "Ouvrir EssieuPilot"; Flags: nowait postinstall skipifsilent
 
 ; IMPORTANT: NO DLLs are copied into the ATS directory by this installer.
 ; Uninstall does not remove user profiles or other installed versions.
