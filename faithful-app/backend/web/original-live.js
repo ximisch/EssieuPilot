@@ -83,11 +83,27 @@
           'Gauche : ' + (c.left_binding || 'Non définie'),
           'Droite : ' + (c.right_binding || 'Non définie')
         ].join(' · ');
-        const last = c.last_input ? 'Dernière commande détectée : ' + c.last_input : 'Aucune commande détectée';
-        const focus = c.ats_foreground ? 'ATS au premier plan' : 'Ouvre ATS pour tester les touches';
-        text.textContent = name + ' — ' + keys + '. ' + last +
-          '. ' + focus + '. Canal IPC neutre : direction réelle non activée.';
-        badge.textContent = c.service_running && c.ipc_ready && c.profile_saved ? 'IPC PRÊT · TEST' : 'À VÉRIFIER';
+        // Persistent mode state and raw press counters are retained after
+        // switching back to the EssieuPilot Diagnostic window.
+        const armed = c.manual_armed ? 'ACTIVÉ (test)' : 'DÉSACTIVÉ';
+        const focus = c.ats_foreground ? 'ATS au premier plan' :
+          c.ats_running ? 'ATS lancé, mais EssieuPilot est au premier plan' : 'ATS non lancé';
+        const counts = 'Activation : ' + (c.activation_count || 0) +
+          ' · Gauche : ' + (c.left_count || 0) +
+          ' · Droite : ' + (c.right_count || 0);
+        const recent = Array.isArray(c.input_history) && c.input_history.length ?
+          c.input_history.slice(-5).join(' / ') : 'Aucun appui reconnu';
+        const last = c.last_input ? 'Dernière commande : ' + c.last_input +
+          (c.last_event_time ? ' à ' + c.last_event_time.slice(11,19) : '') :
+          'Aucune commande enregistrée';
+        text.style.whiteSpace = 'pre-line';
+        text.textContent = 'Profil : ' + name + '\nTouches : ' + keys +
+          '\nMode manuel : ' + armed + '  |  ' + focus +
+          '\nCompteurs des appuis : ' + counts +
+          '\n' + last + '\nHistorique : ' + recent +
+          '\nCanal IPC de test uniquement : aucune direction envoyée aux roues d’ATS.';
+        badge.textContent = !c.service_running || !c.ipc_ready || !c.profile_saved ?
+          'À VÉRIFIER' : c.manual_armed ? 'ACTIVÉ · TEST' : 'INACTIF · TEST';
         badge.className = 'modern-pending-status';
       } catch (error) {
         text.textContent = 'Test des touches indisponible : ' + error.message;
