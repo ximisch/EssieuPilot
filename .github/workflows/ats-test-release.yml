@@ -1,0 +1,284 @@
+name: EssieuPilot ATS 1.62 — experimental installer release
+
+on:
+  push:
+    branches: ['development/ats-integration']
+    paths:
+      - '.github/workflows/ats-test-release.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-2022
+    timeout-minutes: 65
+    steps:
+      - name: Récupérer EssieuPilot
+        uses: actions/checkout@v4
+
+      - name: Récupérer le plugin TS Extra MIT à commit épinglé
+        uses: actions/checkout@v4
+        with:
+          repository: dariowouters/ts-extra-utilities
+          ref: 41b307496960732571de8e43100adba75cd115a1
+          path: upstream-ts-extra
+          submodules: recursive
+          persist-credentials: false
+
+
+      - name: Go 1.23
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.23.2'
+
+      - name: .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Restaurer les sources de reconstruction vérifiées
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $segments = Get-ChildItem 'reconstruction/beta_sources.part*.b64' | Sort-Object Name
+          if ($segments.Count -ne 9) { throw "Archive incomplète : $($segments.Count) segments, 9 attendus" }
+          $base64 = ($segments | ForEach-Object { (Get-Content -Raw $_.FullName).Trim() }) -join ''
+          $bytes = [Convert]::FromBase64String($base64)
+          [System.IO.File]::WriteAllBytes((Join-Path $pwd 'source.tar.xz'), $bytes)
+          $expected = '77c2376d6f8da59093dfdd08ecc1b8f54c7ff1db1fa0b2a6efe76c4d48a0d00b'
+          $actual = (Get-FileHash source.tar.xz -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actual -ne $expected) { throw "Archive corrompue : empreinte SHA-256 inattendue $actual" }
+          tar -xJf source.tar.xz
+          if ($LASTEXITCODE -ne 0) { throw 'Extraction tar impossible' }
+          if (-not (Test-Path 'backend/main.go')) { throw 'Source Go absente' }
+          if (-not (Test-Path 'host/Program.cs')) { throw 'Hôte Windows absent' }
+
+      - name: Récupérer les ressources officielles 1.6.2 sans les modifier
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          New-Item -Force -ItemType Directory release | Out-Null
+          gh release download v1.6.2 --repo $env:GITHUB_REPOSITORY --pattern 'Installer_EssieuPilot.exe' --dir release
+          if ($LASTEXITCODE -ne 0) { throw 'Impossible de récupérer la version officielle 1.6.2' }
+          $sha='f8bb61b07d83e4f6e9324f07972133a3efacab233b82febd66b9304961f1e29b'
+          if ((Get-FileHash release/Installer_EssieuPilot.exe -Algorithm SHA256).Hash.ToLowerInvariant() -ne $sha) { throw 'Hash officiel 1.6.2 non conforme' }
+          python recover_assets.py release/Installer_EssieuPilot.exe backend/web
+          if ($LASTEXITCODE -ne 0) { throw "Échec extraction interface" }
+          git apply --check modern.js.patch app.js.patch
+          if ($LASTEXITCODE -ne 0) { throw 'Les correctifs ne correspondent pas à la version 1.6.2' }
+          git apply modern.js.patch app.js.patch
+          if ($LASTEXITCODE -ne 0) { throw 'Application des correctifs impossible' }
+          New-Item -Force -ItemType Directory 'host/Assets' | Out-Null
+          Copy-Item backend/web/EssieuPilot.ico host/Assets/EssieuPilot.ico
+
+      - name: Corriger le diagnostic de présence ATS et DLL
+        shell: pwsh
+        run: |
+          python reconstruction/apply_dev_changes.py
+          if ($LASTEXITCODE -ne 0) { throw 'Échec mise à jour ATS diagnostic' }
+          Push-Location backend
+          try {
+            gofmt -w ats_windows.go ats_other.go telemetry.go telemetry_test.go
+          } finally { Pop-Location }
+
+      - name: Récupérer la DLL télémétrie épinglée SCS Hub (ne PAS installer dans ATS)
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $dst='out/ATS-Telemetry-ReadOnly'
+          New-Item -ItemType Directory -Force $dst | Out-Null
+          gh release download v0.1.3 --repo UncappingBadger/Badgers-SCS-Telemetry-Hub --pattern 'scs_telemetry_hub.dll' --dir $dst
+          if ($LASTEXITCODE -ne 0) { throw 'Téléchargement télémétrie impossible' }
+          $actual=(Get-FileHash "$dst/scs_telemetry_hub.dll" -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actual -ne '357b97adafa8a3f9648e155fa4b07bba43a4d610d3e15b229d2cac102a817371') { throw "Empreinte DLL inattendue : $actual" }
+          Invoke-WebRequest 'https://raw.githubusercontent.com/UncappingBadger/Badgers-SCS-Telemetry-Hub/main/LICENSE' -OutFile "$dst/LICENSE-SCS-Telemetry-Hub.txt"
+          Write-Host 'DLL de télémétrie empaquetée seulement. Aucune installation dans les plugins ATS.'
+
+      - name: Restaurer le nouveau contrôleur Go de direction des remorques
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $segments = Get-ChildItem integration/go_sources.part*.b64 | Sort-Object Name
+          if ($segments.Count -ne 3) {throw "Expected 3 source parts, got $($segments.Count)"}
+          $encoded = ($segments | ForEach-Object { (Get-Content -Raw $_.FullName).Trim() }) -join ''
+          $archive = [Convert]::FromBase64String($encoded)
+          [System.IO.File]::WriteAllBytes((Join-Path $pwd 'go_bridge.tar.xz'),$archive)
+          $sha = (Get-FileHash go_bridge.tar.xz -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($sha -ne 'bb19be39dad57492951f20b0127de509452bbf3047f99c1bcc931c1a4e3bc1e1') {throw "Unexpected steering source digest $sha"}
+          tar -xJf go_bridge.tar.xz -C backend
+          if ($LASTEXITCODE -ne 0) {throw 'Cannot extract bridge sources'}
+          python integration/bridge/patch_go_backend.py
+          if ($LASTEXITCODE -ne 0) {throw 'Cannot wire Go controller to backend'}
+          Push-Location backend
+          try {
+            gofmt -w steering_protocol.go steering_protocol_test.go steering_bridge_windows.go steering_bridge_other.go steering_runtime_windows.go steering_runtime_other.go main.go
+          } finally { Pop-Location }
+
+      - name: Identifier l'édition expérimentale sans masquer la limitation
+        shell: pwsh
+        run: |
+          $file='backend/main.go'
+          $src=Get-Content -Raw $file
+          if (-not $src.Contains('1.7.0-beta.1')) { throw 'Version précédente introuvable' }
+          $src=$src.Replace('1.7.0-beta.1','1.7.0-beta.2')
+          $src=$src.Replace('BÊTA 1.7.0 — contrôle ATS physique NON disponible','ESSAI ATS 1.62 — BRAQUAGE PHYSIQUE EXPÉRIMENTAL')
+          $src=$src.Replace('Aucune télémétrie ATS accessible. Le module SCS Telemetry Hub doit être installé et ATS démarré. Aucun pilotage physique actif.','Aucune télémétrie accessible. Vérifier SCS Telemetry Hub et ATS lancé.')
+          Set-Content -LiteralPath $file -Encoding UTF8 -Value $src
+          Push-Location backend
+          try { gofmt -w main.go } finally { Pop-Location }
+
+      - name: Tests du moteur et de la télémétrie
+        shell: pwsh
+        run: |
+          Push-Location backend
+          try {
+            go test -v ./...
+            if ($LASTEXITCODE -ne 0) { throw 'Tests Go échoués' }
+            node steering_test.js
+            if ($LASTEXITCODE -ne 0) { throw 'Test de simulation JS échoué' }
+            node ui_telemetry_test.js
+            if ($LASTEXITCODE -ne 0) { throw 'Test de connexion JS échoué' }
+          } finally { Pop-Location }
+
+      - name: Compiler moteur et fenêtre Windows
+        shell: pwsh
+        run: |
+          New-Item -Force -ItemType Directory out | Out-Null
+          Push-Location backend
+          try {
+            go build -o ../out/EssieuPilotBackend.exe .
+            if ($LASTEXITCODE -ne 0) { throw 'Échec compilation moteur' }
+          } finally { Pop-Location }
+          dotnet publish host/EssieuPilot.csproj --configuration Release --runtime win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true --output out
+          if ($LASTEXITCODE -ne 0) { throw 'Échec compilation fenêtre native' }
+          if (-not (Test-Path out/EssieuPilot.exe)) { throw 'Application hôte manquante' }
+          if (-not (Test-Path out/EssieuPilotBackend.exe)) { throw 'Moteur Windows manquant' }
+          $ico = [System.Drawing.Icon]::ExtractAssociatedIcon((Resolve-Path out/EssieuPilot.exe).Path)
+          if ($null -eq $ico) { throw 'Aucune icône Windows intégrée' }
+          $ico.Dispose()
+
+
+      - name: Compiler le module C++ EssieuPilotATS (test, solo DirectX 11)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $commit=(git -C upstream-ts-extra rev-parse HEAD).Trim()
+          if ($commit -ne '41b307496960732571de8e43100adba75cd115a1') { throw 'Dépôt MIT non épinglé' }
+          python integration/bridge/patch_upstream.py upstream-ts-extra
+          if ($LASTEXITCODE -ne 0) { throw "Adaptation du plugin échouée" }
+          $patched=Get-Content -Raw upstream-ts-extra/src/windows/trailer_manipulation.cpp
+          if (-not $patched.Contains('epbridge::read') -or -not $patched.Contains('legacy disconnect/joint hooks removed')) { throw 'Protection du module physique absente' }
+          cmake -S upstream-ts-extra -B upstream-build -G 'Visual Studio 17 2022' -A x64
+          if ($LASTEXITCODE -ne 0) { throw 'CMake configure failed' }
+          cmake --build upstream-build --config Release --parallel 2
+          if ($LASTEXITCODE -ne 0) { throw 'Compilation DLL échouée' }
+          $dll=Get-ChildItem upstream-build -Filter 'ts-extra-utilities.dll' -Recurse | Select-Object -First 1
+          if ($null -eq $dll) { throw 'DLL physique introuvable' }
+          New-Item -ItemType Directory -Force 'out/ATS-Plugin' | Out-Null
+          Copy-Item $dll.FullName 'out/ATS-Plugin/EssieuPilotATS.dll'
+          Copy-Item out/ATS-Telemetry-ReadOnly/scs_telemetry_hub.dll out/ATS-Plugin/scs_telemetry_hub.dll
+          Copy-Item integration/installer/Manage-ATS-Plugins.ps1 out/ATS-Plugin/Manage-ATS-Plugins.ps1
+          Copy-Item integration/installer/README-ESSAI-ATS.txt out/ATS-Plugin/README-ESSAI-ATS.txt
+          Copy-Item upstream-ts-extra/LICENSE.md out/ATS-Plugin/LICENSE-TS-EXTRA.md
+          $size=(Get-Item out/ATS-Plugin/EssieuPilotATS.dll).Length
+          if($size -lt 100000) {throw "DLL de taille suspecte : $size"}
+          Write-Host "Module physique experimental produit : $size octets"
+          Get-FileHash out/ATS-Plugin/EssieuPilotATS.dll -Algorithm SHA256
+          Get-FileHash out/ATS-Plugin/scs_telemetry_hub.dll -Algorithm SHA256
+
+      - name: Vérifier le canal IPC Windows et les commandes périmées
+        shell: pwsh
+        run: |
+          cmake -S integration/bridge/smoke -B bridge-smoke-build -G 'Visual Studio 17 2022' -A x64
+          if ($LASTEXITCODE -ne 0) {throw 'IPC configure failed'}
+          cmake --build bridge-smoke-build --config Release
+          if ($LASTEXITCODE -ne 0) {throw 'IPC compilation failed'}
+          & 'bridge-smoke-build/Release/bridge_smoke.exe'
+          if ($LASTEXITCODE -ne 0) {throw 'IPC watchdog validation failed'}
+
+      - name: Compiler un seul installateur EssieuPilot de test
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          Copy-Item backend/web/EssieuPilot.ico out/EssieuPilot.ico
+          choco install innosetup -y --no-progress
+          if ($LASTEXITCODE -ne 0) { throw 'Inno Setup indisponible' }
+          $iscc = Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'
+          if (-not (Test-Path $iscc)) { throw 'ISCC introuvable' }
+          $env:EP_PUBLISH_DIR = (Resolve-Path 'out').Path
+          New-Item -Force -ItemType Directory output | Out-Null
+          $env:EP_OUT_DIR = (Resolve-Path 'output').Path
+          $env:EP_APP_VERSION = '1.7.0-beta.2'
+          & $iscc 'integration/installer/EssieuPilot-ATS-Test.iss'
+          if ($LASTEXITCODE -ne 0) { throw 'Compilation de l installateur échouée' }
+          $file='output/Installer_EssieuPilot_ATS_Test.exe'
+          if (-not (Test-Path $file)) { throw 'Installateur absent' }
+          if ((Get-Item $file).Length -lt 10000000) { throw 'Installateur trop petit' }
+          Write-Host "Installateur : $((Get-Item $file).Length) octets"
+          Get-FileHash $file -Algorithm SHA256
+
+      - name: Contrôler les composants essentiels avant publication
+        shell: pwsh
+        run: |
+          foreach($p in @('out/EssieuPilot.exe','out/EssieuPilotBackend.exe',
+              'out/ATS-Plugin/EssieuPilotATS.dll','out/ATS-Plugin/scs_telemetry_hub.dll',
+              'out/ATS-Plugin/Manage-ATS-Plugins.ps1','out/ATS-Plugin/README-ESSAI-ATS.txt',
+              'output/Installer_EssieuPilot_ATS_Test.exe')) {
+            if(-not (Test-Path -LiteralPath $p)) {throw "Composant manquant : $p"}
+          }
+          $ps=Get-Content -Raw out/ATS-Plugin/Manage-ATS-Plugins.ps1
+          if (-not $ps.Contains('westplay.dll') -or -not $ps.Contains('Remove') -or -not $ps.Contains('GetHash')) {
+             throw 'Protection contre conflits et rollback manquante'
+          }
+
+      - name: Déposer l'installateur pour audit
+        uses: actions/upload-artifact@v4
+        with:
+          name: EssieuPilot-ATS-1.62-Experimental-v1.7.0-beta.2
+          path: output/Installer_EssieuPilot_ATS_Test.exe
+          retention-days: 21
+
+      - name: Publier une préversion GitHub clairement expérimentale
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference='Stop'
+          $tag='v1.7.0-beta.2'
+          gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null
+          if ($LASTEXITCODE -eq 0) { throw "La version $tag existe déjà : refus de remplacement" }
+          $notes=@'
+          ## EssieuPilot 1.7.0-beta.2 — PREMIER ESSAI ATS 1.62 (Windows)
+          
+          **Attention : cette préversion n'a pas été essayée dans le vrai jeu. RISQUE DE CRASH.**
+          
+          **Téléchargement :** Installer_EssieuPilot_ATS_Test.exe (installateur unique).
+          
+          - Fenêtre EssieuPilot et profils privés, séparés de la version officielle 1.6.2.
+          - Détection d'ATS et télémétrie SCS via `scs_telemetry_hub.dll`.
+          - Une DLL `EssieuPilotATS.dll` issue d'un code source MIT (TS Extra Utilities), adaptée à la communication avec EssieuPilot ; compilation Windows et tests IPC automatisés réussis.
+          - Commandes F8 activation, F9 gauche, F10 droite par défaut ; clavier, manette et joystick, consigne 35 degrés, 14°/s, retour 7°/s. **Braquage physique non vérifié en jeu, angle non étalonné.**
+          - **Commande au niveau de la remorque, et NON direction physique indépendante de chaque essieu.**
+          - Installation des DLL ATS **facultative, explicitement à cocher** dans l'installateur ; aucune DLL existante ETS2LA/Westplay n'est remplacée.
+          - Menu Démarrer : Installer / Retirer DLL ATS ; retrait automatique des seules DLL identifiées par leurs SHA-256 lors de désinstallation si ATS est fermé.
+          - ATS 1.62 x64, solo DirectX 11 seulement. **Convoi / TruckersMP non validés**. Version 1.62.2.2s non validée dans le jeu.
+          - **Pour tester : fermer ATS, sauvegarder la partie, retirer Westplay, installer en cochant les DLL, lancer EssieuPilot AVANT ATS, puis F8/F9/F10 dans une partie solo.**
+          - **Si ATS plante : fermer le jeu, retirer les deux DLL par le raccourci du menu Démarrer ou déplacer uniquement `EssieuPilotATS.dll` et `scs_telemetry_hub.dll` de `bin\win_x64\plugins` ; envoyer `game.log.txt` et `game.crash.txt`.**
+          - Logiciel Windows non signé ; le message SmartScreen est possible.
+          
+          Cette publication permet **un essai volontaire**. Elle ne constitue PAS la version complète et validée demandée à terme.
+          '@
+          gh release create $tag output/Installer_EssieuPilot_ATS_Test.exe --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title 'EssieuPilot v1.7.0-beta.2 — essai physique ATS 1.62 (expérimental)' --prerelease --notes $notes
+          if ($LASTEXITCODE -ne 0) {throw 'Publication GitHub échouée'}
+          gh release view $tag --repo $env:GITHUB_REPOSITORY
