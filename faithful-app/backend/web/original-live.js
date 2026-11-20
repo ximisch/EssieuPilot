@@ -116,8 +116,13 @@
         // Persistent mode state and raw press counters are retained after
         // switching back to the EssieuPilot Diagnostic window.
         const armed = c.manual_armed ? 'ACTIVÉ (test)' : 'DÉSACTIVÉ';
-        const focus = c.ats_foreground ? 'ATS au premier plan' :
-          c.ats_running ? 'ATS lancé, mais EssieuPilot est au premier plan' : 'ATS non lancé';
+        const focus = c.ats_foreground ? 'ATS au premier plan : entrée du jeu autorisée' :
+          c.ats_running ? 'ATS lancé : clavier ignoré tant que la fenêtre ATS n’est pas reconnue' : 'ATS non lancé';
+        const windowsInfo = 'Détection Windows : ' + (c.input_reason || 'Non disponible') +
+          ' · PID actif ' + (c.foreground_pid || '—') +
+          ' / PID ATS ' + (c.ats_process_pid || '—') +
+          ' · codes clavier gauche=' + (c.left_virtual_key || '—') +
+          ', droite=' + (c.right_virtual_key || '—');
         const counts = 'Activation : ' + (c.activation_count || 0) +
           ' · Gauche : ' + (c.left_count || 0) +
           ' · Droite : ' + (c.right_count || 0);
@@ -129,6 +134,7 @@
         text.style.whiteSpace = 'pre-line';
         text.textContent = 'Profil : ' + name + '\nTouches : ' + keys +
           '\nMode manuel : ' + armed + '  |  ' + focus +
+          '\n' + windowsInfo +
           '\nCompteurs des appuis : ' + counts +
           '\n' + last + '\nHistorique : ' + recent +
           '\nCanal IPC de test uniquement : aucune direction envoyée aux roues d’ATS.' +
