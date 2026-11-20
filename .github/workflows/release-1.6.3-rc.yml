@@ -1,0 +1,196 @@
+name: EssieuPilot 1.6.3 - original 1.6.2 UI, ATS companion (RC)
+on:
+  push:
+    branches: ['development/ats-integration']
+    paths:
+      - '.github/workflows/release-1.6.3-rc.yml'
+      - 'integration/stable-1.6.3/**'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: windows-2022
+    timeout-minutes: 70
+    steps:
+      - uses: actions/checkout@v4
+      - name: Référence native MIT TS Extra (commit fixe)
+        uses: actions/checkout@v4
+        with:
+          repository: dariowouters/ts-extra-utilities
+          ref: 41b307496960732571de8e43100adba75cd115a1
+          path: upstream-ts-extra
+          submodules: recursive
+          persist-credentials: false
+      - name: Go 1.23
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.23.2'
+      - name: Extraire la vraie interface stable 1.6.2 et changer 3 marqueurs seulement
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference='Stop'
+          New-Item -ItemType Directory -Force release,out | Out-Null
+          gh release download v1.6.2 --repo $env:GITHUB_REPOSITORY --pattern 'Installer_EssieuPilot.exe' --dir release
+          if($LASTEXITCODE -ne 0){throw 'Original stable 1.6.2 absent'}
+          $sha=(Get-FileHash release/Installer_EssieuPilot.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          if($sha -ne 'f8bb61b07d83e4f6e9324f07972133a3efacab233b82febd66b9304961f1e29b'){throw 'Empreinte originale incorrecte'}
+          $old=[IO.File]::ReadAllBytes((Resolve-Path 'release/Installer_EssieuPilot.exe').Path)
+          if($old.Length -ne 7335424){throw 'Binaire stable inattendu'}
+          $copy=[byte[]]$old.Clone()
+          foreach($i in @(3699004,3733954,3842905)){
+            if([Text.Encoding]::ASCII.GetString($copy,$i-4,5) -ne '1.6.2'){throw "Marqueur inattendu $i"}
+            $copy[$i]=[byte][char]'3'
+          }
+          $diff=0
+          for($i=0;$i -lt $old.Length;$i++){if($old[$i] -ne $copy[$i]){$diff++}}
+          if($diff -ne 3){throw "GUI historique altérée: $diff"}
+          [IO.File]::WriteAllBytes((Join-Path $pwd 'out/EssieuPilot.exe'),$copy)
+          $new=(Get-FileHash out/EssieuPilot.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          if($new -ne 'fb5eb1d7adddebc80dba4067e9d3bb8b28ed99a6f666af85a555b4ff0f860aef'){throw 'Version 1.6.3 non reproductible'}
+          Write-Host 'Original 1.6.2 conservé, uniquement 3 caracteres de version modifiés.'
+      - name: Restaurer les sources Go vérifiées et icône 1.6.2
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $parts=Get-ChildItem 'reconstruction/beta_sources.part*.b64' | Sort-Object Name
+          if($parts.Count -ne 9){throw 'Archive Go incomplète'}
+          $b64=($parts | ForEach-Object {(Get-Content -Raw $_.FullName).Trim()}) -join ''
+          [IO.File]::WriteAllBytes((Join-Path $pwd 'sources.tar.xz'),[Convert]::FromBase64String($b64))
+          if((Get-FileHash sources.tar.xz -Algorithm SHA256).Hash.ToLowerInvariant() -ne '77c2376d6f8da59093dfdd08ecc1b8f54c7ff1db1fa0b2a6efe76c4d48a0d00b'){throw 'Archive Go modifiée'}
+          tar -xJf sources.tar.xz
+          if($LASTEXITCODE -ne 0){throw 'Extraction sources impossible'}
+          python recover_assets.py release/Installer_EssieuPilot.exe backend/web
+          if($LASTEXITCODE -ne 0){throw 'Icône originale indisponible'}
+          git apply --check modern.js.patch app.js.patch
+          if($LASTEXITCODE -ne 0){throw 'Patches interface inconnus'}
+          git apply modern.js.patch app.js.patch
+          if($LASTEXITCODE -ne 0){throw 'Patches interface impossibles'}
+          python reconstruction/apply_dev_changes.py
+          if($LASTEXITCODE -ne 0){throw 'Adaptation télémétrie impossible'}
+          Copy-Item backend/web/EssieuPilot.ico out/EssieuPilot.ico
+      - name: Compiler le contrôleur ATS indépendant sans nouveau launcher WebView2
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $parts=Get-ChildItem 'integration/go_sources.part*.b64' | Sort-Object Name
+          if($parts.Count -ne 3){throw 'Archive direction incomplète'}
+          $b64=($parts | ForEach-Object {(Get-Content -Raw $_.FullName).Trim()}) -join ''
+          [IO.File]::WriteAllBytes((Join-Path $pwd 'steering.tar.xz'),[Convert]::FromBase64String($b64))
+          if((Get-FileHash steering.tar.xz -Algorithm SHA256).Hash.ToLowerInvariant() -ne 'bb19be39dad57492951f20b0127de509452bbf3047f99c1bcc931c1a4e3bc1e1'){throw 'Source direction modifiée'}
+          tar -xJf steering.tar.xz -C backend
+          if($LASTEXITCODE -ne 0){throw 'Sources direction non extraites'}
+          New-Item -ItemType Directory -Force companion | Out-Null
+          foreach($f in @('go.mod','ats_windows.go','devices.go','devices_windows.go','steering_runtime_windows.go',
+              'steering_bridge_windows.go','steering_protocol.go','steering_protocol_test.go','telemetry.go')){
+            if(-not(Test-Path "backend/$f")){throw "Source Go absente $f"}
+            Copy-Item "backend/$f" companion/
+          }
+          Copy-Item integration/stable-1.6.3/companion/main.go companion/main.go
+          Copy-Item integration/stable-1.6.3/companion/main_test.go companion/main_test.go
+          Push-Location companion
+          try {
+            gofmt -w *.go
+            go test -v ./...
+            if($LASTEXITCODE -ne 0){throw 'Tests compagnon échoués'}
+            go build -trimpath -ldflags '-s -w' -o ../out/EssieuPilotController.exe .
+            if($LASTEXITCODE -ne 0){throw 'Compilation contrôleur échouée'}
+          } finally {Pop-Location}
+          if((Get-Item out/EssieuPilotController.exe).Length -lt 2000000){throw 'Contrôleur incomplet'}
+      - name: Inclure la DLL de télémétrie officielle épinglée
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference='Stop'
+          New-Item -ItemType Directory -Force 'out/Plugins ATS' | Out-Null
+          gh release download v0.1.3 --repo UncappingBadger/Badgers-SCS-Telemetry-Hub --pattern 'scs_telemetry_hub.dll' --dir 'out/Plugins ATS'
+          if($LASTEXITCODE -ne 0){throw 'Télémétrie absente'}
+          if((Get-FileHash 'out/Plugins ATS/scs_telemetry_hub.dll' -Algorithm SHA256).Hash.ToLowerInvariant() -ne '357b97adafa8a3f9648e155fa4b07bba43a4d610d3e15b229d2cac102a817371'){throw 'Empreinte Hub invalide'}
+          Invoke-WebRequest 'https://raw.githubusercontent.com/UncappingBadger/Badgers-SCS-Telemetry-Hub/main/LICENSE' -OutFile 'out/Plugins ATS/LICENSE-SCS-Telemetry-Hub.txt'
+      - name: Compiler DLL de braquage physique expérimentale et tests IPC
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          if((git -C upstream-ts-extra rev-parse HEAD).Trim() -ne '41b307496960732571de8e43100adba75cd115a1'){throw 'Sources TS Extra altérées'}
+          python integration/bridge/patch_upstream.py upstream-ts-extra
+          if($LASTEXITCODE -ne 0){throw 'Pont de direction impossible'}
+          $source=Get-Content -Raw upstream-ts-extra/src/windows/trailer_manipulation.cpp
+          if(-not $source.Contains('epbridge::read') -or -not $source.Contains('legacy disconnect/joint hooks removed')){throw 'Protection insuffisante'}
+          cmake -S upstream-ts-extra -B upstream-build -G 'Visual Studio 17 2022' -A x64
+          if($LASTEXITCODE -ne 0){throw 'CMake configure échoué'}
+          cmake --build upstream-build --config Release --parallel 2
+          if($LASTEXITCODE -ne 0){throw 'CMake build échoué'}
+          $dll=Get-ChildItem upstream-build -Recurse -Filter 'ts-extra-utilities.dll' | Select-Object -First 1
+          if($null -eq $dll){throw 'DLL physique absente'}
+          Copy-Item $dll.FullName 'out/Plugins ATS/EssieuPilotATS.dll'
+          Copy-Item upstream-ts-extra/LICENSE.md 'out/Plugins ATS/LICENSE-TS-EXTRA.md'
+          cmake -S integration/bridge/smoke -B ipc-build -G 'Visual Studio 17 2022' -A x64
+          if($LASTEXITCODE -ne 0){throw 'IPC configure échoué'}
+          cmake --build ipc-build --config Release
+          if($LASTEXITCODE -ne 0){throw 'IPC build échoué'}
+          & 'ipc-build/Release/bridge_smoke.exe'
+          if($LASTEXITCODE -ne 0){throw 'Test IPC échoué'}
+      - name: Inclure dossiers séparés et scripts de lancement
+        shell: pwsh
+        run: |
+          Copy-Item integration/stable-1.6.3/Start-EssieuPilot.ps1 out/Start-EssieuPilot.ps1
+          Copy-Item integration/stable-1.6.3/LISEZ-MOI.txt out/LISEZ-MOI.txt
+          foreach($f in @('out/EssieuPilot.exe','out/EssieuPilotController.exe','out/EssieuPilot.ico',
+              'out/Plugins ATS/EssieuPilotATS.dll','out/Plugins ATS/scs_telemetry_hub.dll','out/Start-EssieuPilot.ps1','out/LISEZ-MOI.txt')){
+            if(-not(Test-Path $f)){throw "Fichier paquet absent: $f"}
+          }
+      - name: Construire installateur unique, sans toucher aux DLL ATS existantes
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          choco install innosetup -y --no-progress
+          if($LASTEXITCODE -ne 0){throw 'Inno Setup absent'}
+          $iscc=Join-Path ([Environment]::GetFolderPath('ProgramFilesX86')) 'Inno Setup 6\ISCC.exe'
+          if(-not(Test-Path $iscc)){throw 'Compilateur Inno Setup absent'}
+          $env:EP_PUBLISH_DIR=(Resolve-Path 'out').Path
+          New-Item -ItemType Directory -Force output | Out-Null
+          $env:EP_OUT_DIR=(Resolve-Path 'output').Path
+          $env:EP_APP_VERSION='1.6.3'
+          & $iscc integration/stable-1.6.3/Installer.iss
+          if($LASTEXITCODE -ne 0){throw 'Installateur Windows invalide'}
+          $file='output/Installer_EssieuPilot_1.6.3_Essai.exe'
+          if(-not(Test-Path $file) -or (Get-Item $file).Length -lt 9000000){throw 'Installateur absent ou incomplet'}
+          Get-FileHash $file -Algorithm SHA256
+      - name: Conserver artifact Windows pour validation
+        uses: actions/upload-artifact@v4
+        with:
+          name: EssieuPilot-1.6.3-rc1-Windows
+          path: output/Installer_EssieuPilot_1.6.3_Essai.exe
+          retention-days: 21
+      - name: Publier uniquement une préversion 1.6.3 RC, pas encore stable
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference='Stop'
+          $tag='v1.6.3-rc.1'
+          gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null
+          if($LASTEXITCODE -eq 0){throw 'Une version identique existe déjà'}
+          $notes=@'
+          # EssieuPilot 1.6.3 — candidat de validation (ATS 1.62)
+          
+          ATTENTION : braquage physique non testé dans le vrai ATS, risque de crash. Cette version est une préversion, PAS la mise à jour stable officielle.
+          
+          - Interface Windows identique à la version officielle 1.6.2 (uniquement trois caractères de version changés). Pas de reconstruction WebView2 ni nouveau launcher localhost.
+          - Contrôleur ATS parallèle pour lecture des profils existants sans modification, prises de commandes clavier, joystick, manette et signal de direction IPC.
+          - Les deux DLL et leurs licences sont livrées dans le dossier Plugins ATS de l'installation. Aucun fichier n'est installé automatiquement dans ATS.
+          - Commencer par tester l'ouverture de la GUI sans copier les DLL ATS, puis fermer le jeu, sauvegarder et copier facultativement EssieuPilotATS.dll et scs_telemetry_hub.dll dans American Truck Simulator/bin/win_x64/plugins.
+          - Lancer via le raccourci EssieuPilot - essai ATS pour que le contrôleur s'ouvre et se ferme avec la GUI.
+          - Mode solo ATS 1.62, DirectX 11. F8 activation, F9 gauche, F10 droite par défaut ; consignes 14 deg/s, retour 7 deg/s, max 35 deg.
+          - Braquage physique par REMORQUE, et non séparé par essieu. Aucune compatibilité Convoi prouvée.
+          - Les fichiers ETS2LA existants ne sont ni modifiés ni supprimés. Garder Westplay retiré.
+          - En cas de crash ATS, retirer les deux DLL ajoutées manuellement, puis envoyer les logs game.log.txt et game.crash.txt.
+          - Les diagnostics du contrôleur sont dans %LOCALAPPDATA%/EssieuPilot/diagnostics.
+          - L'installation stable 1.6.2 est préservée et peut rester utilisée.
+          '@
+          gh release create $tag output/Installer_EssieuPilot_1.6.3_Essai.exe --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title 'EssieuPilot 1.6.3 - essai sur base officielle 1.6.2' --prerelease --notes $notes
+          if($LASTEXITCODE -ne 0){throw 'Publication GitHub échouée'}
+          gh release view $tag --repo $env:GITHUB_REPOSITORY
