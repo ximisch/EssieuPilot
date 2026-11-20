@@ -26,6 +26,14 @@ try {
   $watchArgs = '-NoProfile -STA -WindowStyle Hidden -ExecutionPolicy Bypass -File "' + $watch + '" -GuiPid ' + $main.Id + ' -ParentPid ' + $PID
   $watcher = Start-Process -FilePath $ps -ArgumentList $watchArgs -WorkingDirectory $root -WindowStyle Hidden -PassThru
   WriteLog "Indicateurs ATS / pilotage lancés PID=$($watcher.Id), interface PID=$($main.Id)."
+  # RC4: detect silent PowerShell initialization crashes instead of leaving old labels as-is.
+  Start-Sleep -Milliseconds 1200
+  $watcher.Refresh()
+  if ($watcher.HasExited) {
+    $diagnostic=Join-Path $dir 'indicateurs-1.6.3-rc4.log'
+    throw "Le panneau des voyants ne s'est pas ouvert. Diagnostic : $diagnostic"
+  }
+  WriteLog "RC4 indicateurs actifs, consulter le journal du panneau si les voyants ne sont pas visibles."
   $main.WaitForExit()
   WriteLog "Interface fermée, exit=$($main.ExitCode)."
 }
