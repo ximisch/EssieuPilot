@@ -25,7 +25,7 @@ import (
 //go:embed web/*
 var frontend embed.FS
 
-const technicalVersion = "1.7.0-beta.1"
+const technicalVersion = "2.0.0-original.1"
 
 type server struct {
 	telemetry telemetryBridge
@@ -47,7 +47,7 @@ func profilePaths() (profileStore, error) {
 		return profileStore{}, err
 	}
 	return profileStore{
-		path:     filepath.Join(dir, "EssieuPilot-Beta", "profiles.json"),
+		path:     filepath.Join(dir, "EssieuPilot-OriginalTest", "profiles.json"),
 		previous: filepath.Join(dir, "EssieuPilot", "profiles.json"),
 	}, nil
 }
@@ -176,6 +176,7 @@ func newServer(p profileStore) (*server, error) {
 	router.HandleFunc("GET /modern.css", s.static)
 	router.HandleFunc("GET /app.js", s.static)
 	router.HandleFunc("GET /modern.js", s.static)
+    router.HandleFunc("GET /original-live.js", s.static)
 	router.HandleFunc("GET /steering_logic.js", s.static)
 	router.HandleFunc("GET /logo.png", s.static)
 	router.HandleFunc("GET /hero_reference.jpg", s.static)
@@ -186,9 +187,10 @@ func newServer(p profileStore) (*server, error) {
 	router.HandleFunc("POST /api/config", s.saveProfiles)
 	router.HandleFunc("GET /api/devices", s.getDevices)
 	router.HandleFunc("GET /api/telemetry", s.getTelemetry)
+    router.HandleFunc("GET /api/status", s.getLiveStatus)
 	router.HandleFunc("GET /api/ats/installations", s.getATSInstallations)
-	router.HandleFunc("GET /api/updates", s.getUpdates)
-	router.HandleFunc("POST /api/updates/install", s.installUpdate)
+	router.HandleFunc("GET /api/updates", s.getOriginalUpdates)
+	router.HandleFunc("POST /api/updates/install", s.installOriginalUpdate)
 	router.HandleFunc("POST /api/quit", s.quit)
 	s.http = &http.Server{Handler: s.secure(router), ReadHeaderTimeout: 5 * time.Second}
 	return s, nil
@@ -247,10 +249,10 @@ func (s *server) index(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	html := strings.ReplaceAll(string(buf), "__TOKEN__", s.token)
-	// The beta uses the original front end but must visibly identify itself and
-	// NEVER be confused with the stable installation.
+	// The original front end remains intact; only the existing technical version
+	// footer is replaced and a status-poll script is appended.
 	html = strings.ReplaceAll(html, "Version technique 1.6.2", "Version technique "+technicalVersion)
-	html = strings.Replace(html, "</body>", `<div role="status" style="position:fixed;top:6px;right:14px;z-index:2147483647;background:#073642;color:#7ef3e9;border:1px solid #36cdc7;border-radius:7px;padding:5px 10px;font:600 12px Segoe UI,sans-serif;box-shadow:0 2px 8px #0008;pointer-events:none">BÊTA 1.7.0 — contrôle ATS physique NON disponible</div></body>`, 1)
+	html = strings.Replace(html, "</body>", `<script src="/original-live.js" defer></script></body>`, 1)
 	buf = []byte(html)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Write(buf)
