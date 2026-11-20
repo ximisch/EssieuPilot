@@ -56,6 +56,36 @@
       busy = false;
     }
   }
+  // Synchronize the existing original UI "Activer le braquage manuel" button
+  // with the controller's SAFE test-mode state. This is not a physical command.
+  // The original 1.6.2 app still handles local simulation and its appearance.
+  let uiToggleNotice = '';
+  document.addEventListener('click', (event) => {
+    const control = event.target.closest?.('[data-action="toggle-manual"]');
+    if (!control) return;
+    // The original app click handler updates the button's .enabled class
+    // synchronously; wait until it completes before reading the new state.
+    setTimeout(async () => {
+      const toggle = document.getElementById('toggleManual');
+      const enabled = !!toggle?.classList.contains('enabled');
+      try {
+        const response = await fetch('/api/control-link/mode', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-ATS-Token': document.body.dataset.token
+          },
+          body: JSON.stringify({enabled})
+        });
+        const result = await response.json();
+        uiToggleNotice = response.ok ? 'Bouton de l’interface synchronisé avec le contrôleur de test.' :
+          'Bouton de simulation uniquement : ' + (result.error || 'contrôleur non disponible');
+      } catch (error) {
+        uiToggleNotice = 'Le bouton de simulation n’a pas pu joindre le contrôleur : ' + error.message;
+      }
+    }, 0);
+  }, true);
+
   // Stage 1 is displayed in the existing Diagnostic tab, not a new Pilotage tab.
   const diag = document.querySelector('.modern-diagnostic');
   if (diag) {
@@ -101,7 +131,8 @@
           '\nMode manuel : ' + armed + '  |  ' + focus +
           '\nCompteurs des appuis : ' + counts +
           '\n' + last + '\nHistorique : ' + recent +
-          '\nCanal IPC de test uniquement : aucune direction envoyée aux roues d’ATS.';
+          '\nCanal IPC de test uniquement : aucune direction envoyée aux roues d’ATS.' +
+          (uiToggleNotice ? '\n' + uiToggleNotice : '');
         badge.textContent = !c.service_running || !c.ipc_ready || !c.profile_saved ?
           'À VÉRIFIER' : c.manual_armed ? 'ACTIVÉ · TEST' : 'INACTIF · TEST';
         badge.className = 'modern-pending-status';
