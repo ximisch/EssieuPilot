@@ -1,7 +1,7 @@
 """Apply the ATS runtime diagnostics to reconstructed sources after UI patches."""
 from pathlib import Path
 
-root=Path(__file__).resolve().parent
+root=Path(__file__).resolve().parent.parent
 
 def patch(path, updates, tail=''):
     f=root/path
