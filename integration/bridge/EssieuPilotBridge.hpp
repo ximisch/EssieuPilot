@@ -21,6 +21,39 @@ struct Packet {
 #pragma pack(pop)
 static_assert(sizeof(Packet)==36,"bridge ABI mismatch");
 struct Target { bool enabled; float angle; };
+
+constexpr wchar_t ACK_MAP_NAME[] = L"Local\\EssieuPilotAppliedV1";
+constexpr uint32_t ACK_MAGIC = 0x45504131;
+#pragma pack(push,1)
+struct AppliedPacket {
+  uint32_t magic, version, seq_begin, seq_end;
+  uint64_t tick_ms;
+  uint32_t trailer_index, reserved;
+};
+#pragma pack(pop)
+static_assert(sizeof(AppliedPacket)==32,"ACK ABI mismatch");
+// Called exclusively after the actual TS Extra steering callback completed.
+// An ACK proves the DLL executed the call, not that physical wheel motion is verified.
+inline void acknowledgeApplied(uint32_t trailer_index) {
+  static HANDLE map=CreateFileMappingW(INVALID_HANDLE_VALUE,nullptr,PAGE_READWRITE,0,
+                                     sizeof(AppliedPacket),ACK_MAP_NAME);
+  static auto* ack=map?static_cast<AppliedPacket*>(MapViewOfFile(map,FILE_MAP_WRITE,0,0,sizeof(AppliedPacket))):nullptr;
+  if (!ack) return;
+  static volatile LONG seq=0;
+  const uint32_t n=static_cast<uint32_t>(InterlockedAdd(&seq,2));
+  ack->seq_begin=n|1u;
+  MemoryBarrier();
+  ack->magic=ACK_MAGIC;
+  ack->version=1;
+  ack->tick_ms=GetTickCount64();
+  ack->trailer_index=trailer_index;
+  ack->reserved=0;
+  MemoryBarrier();
+  ack->seq_end=n;
+  MemoryBarrier();
+  ack->seq_begin=n;
+}
+
 inline bool read(uint32_t requested, Target& out) {
   static thread_local HANDLE handle=nullptr;
   static thread_local const void* view=nullptr;
