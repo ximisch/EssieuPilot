@@ -76,6 +76,27 @@ method='''    // Called every graphical frame, whether or not the UI overlay is 
 
 '''
 s=change(s,marker,method+marker)
+# During this first ATS test, absolutely DO NOT enable TS Extra's unrelated
+# trailer disconnect or auto-reconnect hooks: their old signatures are unverified
+# on ATS 1.62 and create avoidable crash risks.
+hook_start=s.index('        const auto crash_fn_address = memory::get_address_for_pattern(')
+hook_end=s.index('        this->valid_ = true;',hook_start)
+s=s[:hook_start]+'''        // EssieuPilot ATS test: legacy disconnect/joint hooks removed.
+        // They are not related to steering and their memory patterns
+        // have not been validated on ATS 1.62.
+
+'''+s[hook_end:]
+# Delay the high-risk physics vtable hook until the user has actively enabled
+# steering via a fresh IPC command, not just when the trailer renders.
+s=change(s,
+   '        if (!valid_ || steering_advance_hook != nullptr || CCore::g_instance == nullptr) return;',
+   '''        if (!valid_ || steering_advance_hook != nullptr || CCore::g_instance == nullptr) return;
+        epbridge::Target preflight{};
+        if (!epbridge::read(0,preflight)) return;''')
+# Hide unsupported trailer joint/disconnect buttons completely in the test UI.
+s=change(s,
+   '        this->render_trailers();',
+   '        ImGui::TextWrapped("EssieuPilot ATS 1.62: experimental physical steering only. Joint manipulation disabled.");')
 src.write_text(s,encoding='utf-8')
 h=head.read_text(encoding='utf-8-sig')
 h=change(h,'        void render() override;', '        void render() override;\n        void ensure_bridge_hook() const;')
