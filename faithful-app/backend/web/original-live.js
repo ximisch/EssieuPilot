@@ -126,6 +126,10 @@
         const counts = 'Activation : ' + (c.activation_count || 0) +
           ' · Gauche : ' + (c.left_count || 0) +
           ' · Droite : ' + (c.right_count || 0);
+        const allowed = c.steering_input_allowed ?
+          'AUTORISÉ (test, sans mouvement de roue)' : 'BLOQUÉ (INACTIF)';
+        const admitted = 'Gauche : ' + (c.allowed_left_count || 0) +
+          ' · Droite : ' + (c.allowed_right_count || 0);
         const recent = Array.isArray(c.input_history) && c.input_history.length ?
           c.input_history.slice(-5).join(' / ') : 'Aucun appui reconnu';
         const last = c.last_input ? 'Dernière commande : ' + c.last_input +
@@ -135,7 +139,9 @@
         text.textContent = 'Profil : ' + name + '\nTouches : ' + keys +
           '\nMode manuel : ' + armed + '  |  ' + focus +
           '\n' + windowsInfo +
-          '\nCompteurs des appuis : ' + counts +
+          '\nTouches détectées (même si inactif) : ' + counts +
+          '\nCommandes de direction : ' + allowed +
+          '\nCompteurs autorisés (uniquement ACTIF) : ' + admitted +
           '\n' + last + '\nHistorique : ' + recent +
           '\nCanal IPC de test uniquement : aucune direction envoyée aux roues d’ATS.' +
           (uiToggleNotice ? '\n' + uiToggleNotice : '');
