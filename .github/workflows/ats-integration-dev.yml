@@ -1,4 +1,4 @@
-name: EssieuPilot Development — ATS diagnostic, no release
+name: EssieuPilot Development — ATS diagnostic and physical IPC tests (NO RELEASE)
 
 on:
   push:
@@ -6,6 +6,7 @@ on:
     paths:
       - '.github/workflows/ats-integration-dev.yml'
       - 'reconstruction/**'
+      - 'integration/**'
       - 'installer/EssieuPilot-Beta.iss'
   workflow_dispatch:
 
@@ -97,6 +98,26 @@ jobs:
           Invoke-WebRequest 'https://raw.githubusercontent.com/UncappingBadger/Badgers-SCS-Telemetry-Hub/main/LICENSE' -OutFile "$dst/LICENSE-SCS-Telemetry-Hub.txt"
           Write-Host 'DLL de télémétrie empaquetée seulement. Aucune installation dans les plugins ATS.'
 
+      - name: Restaurer le nouveau contrôleur Go de direction des remorques
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $segments = Get-ChildItem integration/go_sources.part*.b64 | Sort-Object Name
+          if ($segments.Count -ne 3) {throw "Expected 3 source parts, got $($segments.Count)"}
+          $encoded = ($segments | ForEach-Object { (Get-Content -Raw $_.FullName).Trim() }) -join ''
+          $archive = [Convert]::FromBase64String($encoded)
+          [System.IO.File]::WriteAllBytes((Join-Path $pwd 'go_bridge.tar.xz'),$archive)
+          $sha = (Get-FileHash go_bridge.tar.xz -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($sha -ne 'bb19be39dad57492951f20b0127de509452bbf3047f99c1bcc931c1a4e3bc1e1') {throw "Unexpected steering source digest $sha"}
+          tar -xJf go_bridge.tar.xz -C backend
+          if ($LASTEXITCODE -ne 0) {throw 'Cannot extract bridge sources'}
+          python integration/bridge/patch_go_backend.py
+          if ($LASTEXITCODE -ne 0) {throw 'Cannot wire Go controller to backend'}
+          Push-Location backend
+          try {
+            gofmt -w steering_*.go main.go
+          } finally { Pop-Location }
+
       - name: Tests du moteur et de la télémétrie
         shell: pwsh
         run: |
@@ -126,34 +147,4 @@ jobs:
           $ico = [System.Drawing.Icon]::ExtractAssociatedIcon((Resolve-Path out/EssieuPilot.exe).Path)
           if ($null -eq $ico) { throw 'Aucune icône Windows intégrée' }
           $ico.Dispose()
-
-      - name: Préparer l'installateur bêta indépendant
-        shell: pwsh
-        run: |
-          $ErrorActionPreference='Stop'
-          choco install innosetup -y --no-progress
-          if ($LASTEXITCODE -ne 0) { throw 'Inno Setup indisponible' }
-          $iscc = Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'
-          if (-not (Test-Path $iscc)) { throw 'Compilateur Inno Setup introuvable' }
-          $env:EP_PUBLISH_DIR = (Resolve-Path 'out').Path
-          New-Item -Force -ItemType Directory output | Out-Null
-          $env:EP_OUT_DIR = (Resolve-Path 'output').Path
-          $env:EP_APP_VERSION = '1.7.0-beta.1'
-          & $iscc 'installer/EssieuPilot-Beta.iss'
-          if ($LASTEXITCODE -ne 0) { throw 'Échec installateur' }
-          $file='output/Installer_EssieuPilot_Beta.exe'
-          if (-not (Test-Path $file)) { throw 'Installateur absent' }
-          $size = (Get-Item $file).Length
-          if ($size -lt 5000000) { throw "Installateur anormalement petit : $size" }
-          $digest = (Get-FileHash $file -Algorithm SHA256).Hash.ToLowerInvariant()
-          Write-Host "Bêta créée : $size octets SHA-256=$digest"
-
-      - name: Déposer un artefact de vérification
-        uses: actions/upload-artifact@v4
-        with:
-          name: EssieuPilot-Development-ATS-Diagnostic-NoPhysicalSteering
-          path: |
-            output/Installer_EssieuPilot_Beta.exe
-            out/ATS-Telemetry-ReadOnly/**
-          retention-days: 14
 
