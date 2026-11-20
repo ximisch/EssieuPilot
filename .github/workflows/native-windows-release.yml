@@ -42,6 +42,8 @@ jobs:
           if ((Get-Item out/EssieuPilot.exe).Length -lt 10000000) { throw 'Native installer exe suspiciously small' }
           & .\out\EssieuPilot.exe --self-test
           if ($LASTEXITCODE -ne 0) { throw 'Native safety self-test FAILED' }
+          & .\out\EssieuPilot.exe --ui-smoke
+          if ($LASTEXITCODE -ne 0) { throw 'Real WinForms main-window startup FAILED' }
           Get-FileHash out/EssieuPilot.exe -Algorithm SHA256
 
       - name: Install Inno Setup for isolated Windows installer
@@ -74,7 +76,7 @@ jobs:
       - name: Keep Windows test builds available for diagnosis
         uses: actions/upload-artifact@v4
         with:
-          name: EssieuPilot-Native-2.0.0-test2
+          name: EssieuPilot-Native-2.0.0-test3
           path: |
             release/Installer_EssieuPilot.exe
             release/EssieuPilot_Native_Installateur_ZIP.zip
@@ -86,13 +88,15 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $ErrorActionPreference = 'Stop'
-          $tag='v2.0.0-native.2'
+          $tag='v2.0.0-native.3'
           gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null
           if ($LASTEXITCODE -eq 0) { throw "Native test release already exists: $tag" }
           $notes=@'
-          # EssieuPilot — mise à jour de la nouvelle application native (essai n°2)
+          # EssieuPilot — correction du démarrage de l'application native (essai n°3)
           
-          - Cette édition v2.0.0-native.2 peut être installée depuis le bouton Mises à jour de v2.0.0-native.1, qui effectue un téléchargement vérifié SHA-256 avant de lancer le nouvel installateur.
+          - Corrige le plantage possible au lancement sur Windows causé par un contrôle personnalisé utilisant un arrière-plan transparent non déclaré.
+          - Test supplémentaire : création réelle de la fenêtre WinForms principale, affichage et fermeture dans le pipeline Windows.
+          - Depuis v2.0.0-native.1, une fois son démarrage fonctionnel, les mises à jour se font depuis le menu du logiciel. Sinon installer cette correction une fois.
           - L'indicateur des mises à jour disponibles apparaît désormais dans le menu latéral.
           - Diagnostic des erreurs d'interface Windows ajouté.
           - Interface Windows UNIQUE bleu nuit/turquoise reconstruite en C# / .NET 8 : tableau de bord, profils, commandes, connexions, mises à jour, paramètres et à propos.
@@ -106,6 +110,6 @@ jobs:
           - Installateur Windows autonome non signé. Un ZIP contenant l'installateur est fourni comme téléchargement de secours.
           - Ne pas effacer l'installation stable EssieuPilot 1.6.2 ni les profils originaux.
           '@
-          gh release create $tag release/Installer_EssieuPilot.exe release/EssieuPilot_Native_Installateur_ZIP.zip --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title 'EssieuPilot — mise à jour native v2.0.0-native.2' --prerelease --notes $notes
+          gh release create $tag release/Installer_EssieuPilot.exe release/EssieuPilot_Native_Installateur_ZIP.zip --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title 'EssieuPilot — correction démarrage v2.0.0-native.3' --prerelease --notes $notes
           if ($LASTEXITCODE -ne 0) { throw 'Native test GitHub publication failed' }
           gh release view $tag --repo $env:GITHUB_REPOSITORY
