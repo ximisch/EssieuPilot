@@ -34,6 +34,7 @@ s=change(s,
             locked_trailers[trailer_index]=true;
             self->steering=target.angle;
             ep_set_steering(self->wheel_steering_stuff,target.angle);
+            epbridge::acknowledgeApplied(static_cast<uint32_t>(trailer_index));
             return 0;
         }
         // Missing/stale IPC = immediately restore the game's automatic steering.
