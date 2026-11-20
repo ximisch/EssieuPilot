@@ -135,7 +135,7 @@
     const connected=!!t?.connected;
     const tr=t?.trailers?.[0];
     const status=document.getElementById('modernGameState');
-    if(status)status.textContent=connected?'● Connecté (lecture)':'● Non connecté';
+    // Ne jamais écraser le voyant ATS du jeu : sa source est /api/status, pas la télémétrie SCS.
     const speed=document.getElementById('modernGameSpeed');
     if(speed)speed.textContent=connected?Math.abs(t.speed_kmh).toFixed(1)+' km/h':'— km/h';
     const detail=document.getElementById('telemetryDetail');
