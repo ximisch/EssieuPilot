@@ -11,6 +11,8 @@ internal static class Program
     {
         if (args.Length > 0 && args[0] == "--self-test")
             return NativeSelfTests.Run();
+        if (args.Length > 0 && args[0] == "--ui-smoke")
+            return RunUiSmokeTest();
         ApplicationConfiguration.Initialize();
         Application.ThreadException += (_, evt) =>
         {
@@ -23,13 +25,35 @@ internal static class Program
         Application.Run(new EssieuPilotWindow());
         return 0;
     }
+
+    private static int RunUiSmokeTest()
+    {
+        try
+        {
+            ApplicationConfiguration.Initialize();
+            using var window = new EssieuPilotWindow(uiSmokeTest: true);
+            window.Show();
+            Application.DoEvents();
+            if (!window.IsHandleCreated || !window.Visible || window.Controls.Count < 3)
+                throw new InvalidOperationException("EssieuPilot window failed to become visible");
+            window.Close();
+            Console.WriteLine("PASS: EssieuPilot main window opened with custom ATS lamps");
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            AppInfo.Log("UI smoke test failed: " + ex);
+            Console.Error.WriteLine(ex);
+            return 1;
+        }
+    }
 }
 
 internal static class AppInfo
 {
     public const string Name = "EssieuPilot";
-    public const string TechnicalVersion = "2.0.0-native.2";
-    public const int Build = 2;
+    public const string TechnicalVersion = "2.0.0-native.3";
+    public const int Build = 3;
     public const string GithubRepo = "ximisch/EssieuPilot";
     public static string SettingsDirectory =>
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "EssieuPilot-Native");
