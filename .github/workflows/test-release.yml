@@ -1,12 +1,6 @@
 name: Créer les versions de test EssieuPilot (Windows)
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'src/EssieuPilot/**'
-      - 'installer/EssieuPilot-Test.iss'
-      - '.github/workflows/test-release.yml'
   workflow_dispatch:
 
 permissions:
