@@ -152,6 +152,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: EssieuPilot-Development-ATS-Diagnostic-NoPhysicalSteering
-          path: |\n            output/Installer_EssieuPilot_Beta.exe\n            out/ATS-Telemetry-ReadOnly/**
+          path: |
+            output/Installer_EssieuPilot_Beta.exe
+            out/ATS-Telemetry-ReadOnly/**
           retention-days: 14
 
