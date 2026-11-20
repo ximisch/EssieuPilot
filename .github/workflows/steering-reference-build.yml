@@ -1,0 +1,81 @@
+name: EssieuPilot R&D - compile steering reference (NO RELEASE)
+
+on:
+  push:
+    branches: ['development/ats-integration']
+    paths:
+      - '.github/workflows/steering-reference-build.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source-build-only:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout EssieuPilot source
+        uses: actions/checkout@v4
+
+      - name: Checkout pinned MIT steering reference (NOT a production DLL)
+        uses: actions/checkout@v4
+        with:
+          repository: dariowouters/ts-extra-utilities
+          ref: 41b307496960732571de8e43100adba75cd115a1
+          path: upstream-ts-extra
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Check provenance and steering code
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $actual=(git -C upstream-ts-extra rev-parse HEAD).Trim()
+          if ($actual -ne '41b307496960732571de8e43100adba75cd115a1') { throw 'Upstream commit changed' }
+          $src = Get-Content -Raw upstream-ts-extra/src/windows/trailer_manipulation.cpp
+          if (-not $src.Contains('set_individual_steering_fn_')) {throw 'No physical steering reference function found'}
+          if (-not $src.Contains('steering_advance_hook')) {throw 'No game automatic steering lock hook found'}
+          if (-not (Test-Path upstream-ts-extra/LICENSE.md)) {throw 'Missing license'}
+          Write-Host 'Reference code: manually steerable trailer unit, NOT a validated per-axle implementation.'
+          Write-Host 'Compiled DLL must NOT be distributed or installed until ATS 1.62 offsets and crash safety are tested.'
+
+      - name: Configure Windows x64 native plugin
+        shell: pwsh
+        run: |
+          cmake -S upstream-ts-extra -B upstream-build -G 'Visual Studio 17 2022' -A x64
+          if ($LASTEXITCODE -ne 0) {throw 'CMake configure failed'}
+
+      - name: Compile reference plugin (without executing it)
+        shell: pwsh
+        run: |
+          cmake --build upstream-build --config Release --parallel 2
+          if ($LASTEXITCODE -ne 0) {throw 'CMake build failed'}
+          $dll = Get-ChildItem upstream-build -Recurse -Filter 'ts-extra-utilities.dll' | Select-Object -First 1
+          if (-not $dll) {throw 'No DLL produced'}
+          $sha=(Get-FileHash $dll.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          Write-Host "Research binary compiled: size=$($dll.Length), sha256=$sha, path=$($dll.FullName)"
+          $env:TS_EXTRA_RESEARCH_DLL=$dll.FullName
+
+      - name: Archive a build report ONLY (not the executable DLL)
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force 'research-report' | Out-Null
+          @'
+          This is a STATIC compilation experiment only.
+          Source: https://github.com/dariowouters/ts-extra-utilities
+          Commit: 41b307496960732571de8e43100adba75cd115a1
+          License: MIT (upstream LICENSE.md)
+          NO ATTACHED DLL: one needs to inspect version-specific ATS 1.62 signatures/offsets
+          and crash-safety before compiling an EssieuPilot integration for actual installation.
+          This example controls steering per trailer unit, not independently per axle.
+          No Convoi/multiplayer compatibility claims.
+          '@ | Set-Content 'research-report/README.txt'
+          Copy-Item upstream-ts-extra/LICENSE.md research-report/LICENSE.md
+
+      - name: Save research report, not a user download
+        uses: actions/upload-artifact@v4
+        with:
+          name: essieupilot-ts-extra-compatibility-research
+          path: research-report/
+          retention-days: 7
