@@ -247,6 +247,16 @@ func startSteeringRuntime(s *server) func() {
 		var manual, prevToggle, prevLeft, prevRight, prevAnalog bool
 		var profileID string
 		var profileLoaded bool
+		var gameRunning bool
+		var activationCount, leftCount, rightCount uint64
+		var lastDirection string
+		var lastDirectionTime time.Time
+		var lastFocusTime time.Time
+		var history []string
+		addHistory := func(event string, at time.Time) {
+			history = append(history, at.Format("15:04:05")+" "+event)
+			if len(history) > 6 { history = append([]string(nil), history[len(history)-6:]...) }
+		}
 		for {
 			select {
 			case <-ctx.Done():
@@ -260,6 +270,7 @@ func startSteeringRuntime(s *server) func() {
 			now := time.Now()
 			if now.Sub(lastProfileRead) >= 250*time.Millisecond {
 				lastProfileRead = now
+				gameRunning = statusATSRunning()
 				buf, err := s.store.read()
 				var current runtimeProfiles
 				profileLoaded = err == nil && json.Unmarshal(buf, &current) == nil && len(current.Profiles) > 0
@@ -282,8 +293,14 @@ func startSteeringRuntime(s *server) func() {
 				prevAnalog = false
 				lastInput = ""
 				lastEventTime = time.Time{}
+				lastDirection = ""
+				lastDirectionTime = time.Time{}
+				activationCount, leftCount, rightCount = 0, 0, 0
+				history = nil
 			}
-			foreground := isForegroundATS()
+			if !gameRunning { manual = false }
+			foreground := gameRunning && isForegroundATS()
+			if foreground {lastFocusTime = now}
 			snapshot := inputLinkSnapshot{
 				ServiceRunning: true, IPCReady: bridge != nil,
 				ProfileSaved:           profileLoaded && found,
@@ -293,51 +310,75 @@ func startSteeringRuntime(s *server) func() {
 				RightBinding:           active.RightKey,
 				AnalogBinding:          active.AnalogAxis,
 				ATSForeground:          foreground,
+				ATSRunning:             gameRunning,
 				PhysicalControlEnabled: false,
 				DLLConfirmed:           false,
 				StatusMessage:          "Touches transmises au contrôleur. Canal IPC neutre : aucun braquage physique activé.",
 			}
 			if !foreground {
-				manual = false
+				// ATS lost focus: do not read input from another application.
+				// Keep the last armed/unarmed state for the Diagnostic page. Old code
+				// reset manual=false on every Alt+Tab, hiding successful activation.
 				prevToggle = false
 				prevLeft = false
 				prevRight = false
 				prevAnalog = false
-				// Only observe user input when ATS owns the foreground window.
 			} else if found {
 				devices := readDevices()
 				toggle := deviceBindingDown(active.ToggleKey, devices)
-				if toggle && !prevToggle {
+				if risingEdge(toggle, prevToggle) {
 					manual = !manual
+					activationCount++
 					lastInput = "Activation (" + active.ToggleKey + ")"
-					if !manual {
-						lastInput = "Désactivation (" + active.ToggleKey + ")"
-					}
+					if !manual { lastInput = "Désactivation (" + active.ToggleKey + ")" }
 					lastEventTime = now
+					addHistory(lastInput, now)
 				}
 				prevToggle = toggle
 				left := deviceBindingDown(active.LeftKey, devices)
 				right := deviceBindingDown(active.RightKey, devices)
-				if left && !prevLeft && manual {
+				// Always record a raw press. When manual mode is off, label it
+				// explicitly; otherwise the user cannot distinguish bad bindings
+				// from a disabled steering toggle.
+				if risingEdge(left, prevLeft) {
+					leftCount++
 					lastInput = "Gauche (" + active.LeftKey + ")"
+					if !manual {lastInput += " — pilotage désactivé"}
 					lastEventTime = now
+					lastDirection = lastInput
+					lastDirectionTime = now
+					addHistory(lastInput, now)
 				}
-				if right && !prevRight && manual {
+				if risingEdge(right, prevRight) {
+					rightCount++
 					lastInput = "Droite (" + active.RightKey + ")"
+					if !manual {lastInput += " — pilotage désactivé"}
 					lastEventTime = now
+					lastDirection = lastInput
+					lastDirectionTime = now
+					addHistory(lastInput, now)
 				}
 				prevLeft = left
 				prevRight = right
 				analog := math.Abs(analogFromDevices(active, devices)) >= 0.1
-				if analog && !prevAnalog && manual {
+				if risingEdge(analog, prevAnalog) {
 					lastInput = "Axe analogique (" + active.AnalogAxis + ")"
+					if !manual {lastInput += " — pilotage désactivé"}
 					lastEventTime = now
+					addHistory(lastInput, now)
 				}
 				prevAnalog = analog
 				snapshot.LeftPressed = left && manual
 				snapshot.RightPressed = right && manual
 			}
 			snapshot.ManualArmed = manual
+			snapshot.ActivationCount = activationCount
+			snapshot.LeftCount = leftCount
+			snapshot.RightCount = rightCount
+			snapshot.LastDirection = lastDirection
+			_, snapshot.LastDirectionTime = formatInputEvent(lastDirection, lastDirectionTime)
+			if !lastFocusTime.IsZero() {snapshot.LastFocusTime = lastFocusTime.Format(time.RFC3339)}
+			snapshot.InputHistory = append([]string(nil), history...)
 			snapshot.LastInput, snapshot.LastEventTime = formatInputEvent(lastInput, lastEventTime)
 			// Important safety interlock: NEVER send an enabled packet to a
 			// version-unverified DLL. This first update tests mapping + IPC only.
@@ -351,6 +392,12 @@ func startSteeringRuntime(s *server) func() {
 		}
 	}()
 	return func() { cancel(); <-done }
+}
+
+// risingEdge records one press per key-down transition. It does not
+// presume that steering is armed, so disabled-input tests remain observable.
+func risingEdge(pressed, previouslyPressed bool) bool {
+	return pressed && !previouslyPressed
 }
 
 func activeSavedProfile(profiles runtimeProfiles) (runtimeProfile, bool) {
