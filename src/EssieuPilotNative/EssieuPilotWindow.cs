@@ -20,7 +20,12 @@ internal sealed class StatusLamp : Control
     public StatusLamp()
     {
         Size = new Size(17, 17);
-        DoubleBuffered = true;
+        // Custom Control rejects alpha transparency unless the style is enabled.
+        // Setting it before BackColor prevents a startup ArgumentException.
+        SetStyle(ControlStyles.SupportsTransparentBackColor |
+                 ControlStyles.UserPaint |
+                 ControlStyles.AllPaintingInWmPaint |
+                 ControlStyles.OptimizedDoubleBuffer, true);
         BackColor = Color.Transparent;
     }
     protected override void OnPaint(PaintEventArgs e)
@@ -70,7 +75,7 @@ internal sealed class EssieuPilotWindow : Form
     private bool _simLeft, _simRight, _simMoving;
     private AtsSnapshot _lastSnapshot = new(null, false);
 
-    public EssieuPilotWindow()
+    public EssieuPilotWindow(bool uiSmokeTest = false)
     {
         Text = "EssieuPilot";
         ClientSize = new Size(1200, 758);
@@ -98,10 +103,13 @@ internal sealed class EssieuPilotWindow : Form
         _pollTimer.Start();
         _simTimer.Tick += (_, _) => TickSimulation();
         _simTimer.Start();
-        Shown += async (_, _) => {
-            RefreshStatus();
-            await CheckUpdates(silent: true);
-        };
+        if (!uiSmokeTest)
+        {
+            Shown += async (_, _) => {
+                RefreshStatus();
+                await CheckUpdates(silent: true);
+            };
+        }
         FormClosed += (_, _) => {
             _pollTimer.Dispose();
             _simTimer.Dispose();
