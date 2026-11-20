@@ -23,6 +23,17 @@ int main() {
     mem->tick_ms=GetTickCount64();mem->enabled=0;
     if(read(0,out)) return 17;
     UnmapViewOfFile(mem);CloseHandle(h);
-    std::puts("EssieuPilot MMF ABI, stale fail-safe, index & angle limits: PASS");
+    acknowledgeApplied(0);
+    HANDLE ackMap=OpenFileMappingW(FILE_MAP_READ,FALSE,ACK_MAP_NAME);
+    if(!ackMap) return 18;
+    auto* ack=static_cast<const AppliedPacket*>(
+        MapViewOfFile(ackMap,FILE_MAP_READ,0,0,sizeof(AppliedPacket)));
+    if(!ack) {CloseHandle(ackMap);return 19;}
+    if(ack->magic!=ACK_MAGIC || ack->version!=1 || ack->trailer_index!=0 ||
+       ack->seq_begin!=ack->seq_end || (ack->seq_begin&1u) ||
+       GetTickCount64()<ack->tick_ms ||
+       GetTickCount64()-ack->tick_ms>1500) return 20;
+    UnmapViewOfFile(ack);CloseHandle(ackMap);
+    std::puts("EssieuPilot steering IPC and physical-callback acknowledgement mapping: PASS");
     return 0;
 }
