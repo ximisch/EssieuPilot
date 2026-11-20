@@ -247,6 +247,7 @@ func startSteeringRuntime(s *server) func() {
 		var manual, prevToggle, prevLeft, prevRight, prevAnalog bool
 		var profileID string
 		var profileLoaded bool
+		var lastModeRequest uint64
 		var gameRunning bool
 		var activationCount, leftCount, rightCount uint64
 		var lastDirection string
@@ -299,6 +300,19 @@ func startSteeringRuntime(s *server) func() {
 				history = nil
 			}
 			manual = retainManualOnFocusChange(manual, gameRunning)
+			if seq, enabled, updated := readInputModeRequest(lastModeRequest); updated {
+				lastModeRequest = seq
+				// The UI button is a request for the same TEST mode. It never
+				// grants permission to send an enabled physical DLL packet.
+				if !enabled || (gameRunning && found) {
+					manual = enabled
+					activationCount++
+					lastInput = "Activation (bouton EssieuPilot)"
+					if !manual { lastInput = "Désactivation (bouton EssieuPilot)" }
+					lastEventTime = now
+					addHistory(lastInput, now)
+				}
+			}
 			foreground := gameRunning && isForegroundATS()
 			if foreground {lastFocusTime = now}
 			snapshot := inputLinkSnapshot{
