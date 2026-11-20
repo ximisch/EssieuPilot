@@ -25,29 +25,78 @@ var getWindowPID = epUser32.NewProc("GetWindowThreadProcessId")
 var openProcess = epKernel32.NewProc("OpenProcess")
 var queryImage = epKernel32.NewProc("QueryFullProcessImageNameW")
 
-func isForegroundATS() bool {
+// Input capture is gated to the actual foreground ATS process. Windows can
+// deny OpenProcess/QueryFullProcessImageName for elevated games even when
+// Toolhelp32 is able to enumerate amtrucks.exe. Prefer PID matching first.
+type atsFocusInfo struct {
+	IsATS bool
+	ForegroundPID uint32
+	ATSProcessPID uint32
+	Reason string
+}
+
+func atsProcessIDs() []uint32 {
+	handle, _, _ := createSnapshot.Call(snapProcess, 0)
+	if handle == ^uintptr(0) || handle == 0 { return nil }
+	defer closeStatusHandle.Call(handle)
+	entry := statusProcessEntry{Size: uint32(unsafe.Sizeof(statusProcessEntry{}))}
+	ok, _, _ := processFirstW.Call(handle, uintptr(unsafe.Pointer(&entry)))
+	var ids []uint32
+	for ok != 0 {
+		if strings.EqualFold(syscall.UTF16ToString(entry.Exe[:]), "amtrucks.exe") {
+			ids = append(ids, entry.PID)
+		}
+		entry.Size = uint32(unsafe.Sizeof(statusProcessEntry{}))
+		ok, _, _ = processNextW.Call(handle, uintptr(unsafe.Pointer(&entry)))
+	}
+	return ids
+}
+
+func detectATSForeground() atsFocusInfo {
 	hwnd, _, _ := getForeground.Call()
 	if hwnd == 0 {
-		return false
+		return atsFocusInfo{Reason: "Fenêtre active Windows indisponible"}
 	}
 	var pid uint32
 	getWindowPID.Call(hwnd, uintptr(unsafe.Pointer(&pid)))
 	if pid == 0 {
-		return false
+		return atsFocusInfo{Reason: "PID de la fenêtre active indisponible"}
 	}
+	result := atsFocusInfo{ForegroundPID:pid}
+	for _, gamePID := range atsProcessIDs() {
+		if result.ATSProcessPID == 0 { result.ATSProcessPID = gamePID }
+		if pid == gamePID {
+			result.IsATS = true
+			result.ATSProcessPID = gamePID
+			result.Reason = "Fenêtre ATS reconnue par son PID"
+			return result
+		}
+	}
+	// Fallback for Windows builds where Process32 enumeration is restricted.
 	h, _, _ := openProcess.Call(0x1000, 0, uintptr(pid))
 	if h == 0 {
-		return false
+		result.Reason = "Fenêtre active non reconnue ; lecture du PID refusée par Windows"
+		return result
 	}
 	defer epCloseHandle.Call(h)
 	var name [1024]uint16
 	length := uint32(len(name))
 	ret, _, _ := queryImage.Call(h, 0, uintptr(unsafe.Pointer(&name[0])), uintptr(unsafe.Pointer(&length)))
 	if ret == 0 {
-		return false
+		result.Reason = "Impossible de lire le nom du processus actif"
+		return result
 	}
-	return strings.EqualFold(filepath.Base(syscall.UTF16ToString(name[:length])), "amtrucks.exe")
+	if strings.EqualFold(filepath.Base(syscall.UTF16ToString(name[:length])), "amtrucks.exe") {
+		result.IsATS = true
+		result.ATSProcessPID = pid
+		result.Reason = "Fenêtre ATS reconnue par le nom du processus"
+		return result
+	}
+	result.Reason = "Une autre application est au premier plan"
+	return result
 }
+
+func isForegroundATS() bool { return detectATSForeground().IsATS }
 
 func codeToVK(binding string) uint16 {
 	if !strings.HasPrefix(binding, "KEY:") {
@@ -313,7 +362,8 @@ func startSteeringRuntime(s *server) func() {
 					addHistory(lastInput, now)
 				}
 			}
-			foreground := gameRunning && isForegroundATS()
+			focus := detectATSForeground()
+			foreground := gameRunning && focus.IsATS
 			if foreground {lastFocusTime = now}
 			snapshot := inputLinkSnapshot{
 				ServiceRunning: true, IPCReady: bridge != nil,
@@ -325,6 +375,12 @@ func startSteeringRuntime(s *server) func() {
 				AnalogBinding:          active.AnalogAxis,
 				ATSForeground:          foreground,
 				ATSRunning:             gameRunning,
+				ForegroundPID:          focus.ForegroundPID,
+				ATSProcessPID:          focus.ATSProcessPID,
+				FocusReason:            focus.Reason,
+				LeftVirtualKey:         codeToVK(active.LeftKey),
+				RightVirtualKey:        codeToVK(active.RightKey),
+				InputMonitoringActive:  foreground && found,
 				PhysicalControlEnabled: false,
 				DLLConfirmed:           false,
 				StatusMessage:          "Touches transmises au contrôleur. Canal IPC neutre : aucun braquage physique activé.",
@@ -386,6 +442,21 @@ func startSteeringRuntime(s *server) func() {
 				snapshot.RightPressed = right && manual
 			}
 			snapshot.ManualArmed = manual
+			if !gameRunning {
+				snapshot.InputReason = "ATS n'est pas lancé"
+			} else if !found {
+				snapshot.InputReason = "Profil actif introuvable ou non enregistré"
+			} else if !foreground {
+				snapshot.InputReason = focus.Reason + " : touches suspendues hors du jeu"
+			} else {
+				snapshot.InputReason = "Surveillance clavier/manette active dans ATS"
+				if strings.HasPrefix(active.LeftKey, "KEY:") && snapshot.LeftVirtualKey == 0 {
+					snapshot.InputReason = "Touche gauche non reconnue : vérifier la configuration"
+				}
+				if strings.HasPrefix(active.RightKey, "KEY:") && snapshot.RightVirtualKey == 0 {
+					snapshot.InputReason = "Touche droite non reconnue : vérifier la configuration"
+				}
+			}
 			snapshot.ActivationCount = activationCount
 			snapshot.LeftCount = leftCount
 			snapshot.RightCount = rightCount
