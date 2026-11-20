@@ -1,4 +1,4 @@
-name: EssieuPilot 1.6.3 - dual indicators with steering DLL acknowledgement (RC3)
+name: EssieuPilot 1.6.3 - reliable in-window status panel (RC4)
 on:
   push:
     branches: ['development/ats-integration']
@@ -140,6 +140,8 @@ jobs:
           Copy-Item integration/stable-1.6.3/Watch-ATS.ps1 out/Watch-ATS.ps1
           powershell.exe -NoProfile -STA -ExecutionPolicy Bypass -File out/Watch-ATS.ps1 -SelfTest
           if($LASTEXITCODE -ne 0){throw 'Test de détection ATS absent / présent / inconnu échoué'}
+          powershell.exe -NoProfile -STA -ExecutionPolicy Bypass -File out/Watch-ATS.ps1 -UiSmokeTest
+          if($LASTEXITCODE -ne 0){throw 'Le panneau Windows des deux voyants ne s affiche pas'}
           Copy-Item integration/stable-1.6.3/LISEZ-MOI.txt out/LISEZ-MOI.txt
           foreach($f in @('out/EssieuPilot.exe','out/EssieuPilotController.exe','out/EssieuPilot.ico',
               'out/Plugins ATS/EssieuPilotATS.dll','out/Plugins ATS/scs_telemetry_hub.dll','out/Start-EssieuPilot.ps1','out/Watch-ATS.ps1','out/LISEZ-MOI.txt')){
@@ -169,35 +171,37 @@ jobs:
           if(-not(Test-Path $zip) -or (Get-Item $zip).Length -lt 100000){throw 'Archive de DLL absente'}
           Get-FileHash $file -Algorithm SHA256
           Get-FileHash $zip -Algorithm SHA256
-          Compress-Archive -Path $file -DestinationPath 'output/EssieuPilot_1.6.3_RC3_Installateur_ZIP.zip' -CompressionLevel Optimal
-          if(-not(Test-Path 'output/EssieuPilot_1.6.3_RC3_Installateur_ZIP.zip')){throw 'ZIP installeur absent'}
-          Expand-Archive -LiteralPath 'output/EssieuPilot_1.6.3_RC3_Installateur_ZIP.zip' -DestinationPath 'verify_rc3'
+          Compress-Archive -Path $file -DestinationPath 'output/EssieuPilot_1.6.3_RC4_Installateur_ZIP.zip' -CompressionLevel Optimal
+          if(-not(Test-Path 'output/EssieuPilot_1.6.3_RC4_Installateur_ZIP.zip')){throw 'ZIP installeur absent'}
+          Expand-Archive -LiteralPath 'output/EssieuPilot_1.6.3_RC4_Installateur_ZIP.zip' -DestinationPath 'verify_rc3'
           if((Get-FileHash 'verify_rc3/Installer_EssieuPilot_1.6.3_Essai.exe' -Algorithm SHA256).Hash -ne (Get-FileHash $file -Algorithm SHA256).Hash){throw 'ZIP installeur corrompu'}
-          Get-FileHash 'output/EssieuPilot_1.6.3_RC3_Installateur_ZIP.zip' -Algorithm SHA256
+          Get-FileHash 'output/EssieuPilot_1.6.3_RC4_Installateur_ZIP.zip' -Algorithm SHA256
       - name: Conserver artifact Windows pour validation
         uses: actions/upload-artifact@v4
         with:
-          name: EssieuPilot-1.6.3-rc3-Windows
+          name: EssieuPilot-1.6.3-rc4-Windows
           path: |
             output/Installer_EssieuPilot_1.6.3_Essai.exe
             output/Plugins_ATS_EssieuPilot_1.6.3.zip
-            output/EssieuPilot_1.6.3_RC3_Installateur_ZIP.zip
+            output/EssieuPilot_1.6.3_RC4_Installateur_ZIP.zip
           retention-days: 21
-      - name: Publier uniquement la préversion 1.6.3 RC3, pas une version stable
+      - name: Publier uniquement la préversion 1.6.3 RC4, pas une version stable
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           $ErrorActionPreference='Stop'
-          $tag='v1.6.3-rc.3'
+          $tag='v1.6.3-rc.4'
           gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null
           if($LASTEXITCODE -eq 0){throw 'Une version identique existe déjà'}
           $notes=@'
-          # EssieuPilot 1.6.3 RC3 — voyants ATS et pilotage avec accusé de la DLL
+          # EssieuPilot 1.6.3 RC4 — affichage des deux voyants corrigé
           
           ATTENTION : braquage physique non testé dans le vrai ATS, risque de crash. Cette version est une préversion, PAS la mise à jour stable officielle.
           
-          - **NOUVEAU** : deux voyants rouge/vert superposés dans la fenêtre EssieuPilot historique (panneau Windows séparé, sans modifier l'exécutable d'origine).
+          - **CORRECTIF RC4** : le panneau Windows des deux voyants s'ouvre au démarrage sans attendre une correspondance de fenêtre/avant-plan. Il est récupérable depuis l'icône Windows ou la barre des tâches.
+          - Test automatisé Windows d'affichage du panneau (événement Shown, poignée valide, entrée dans la barre des tâches). Un journal est écrit dans `%LOCALAPPDATA%\EssieuPilot\diagnostics\indicateurs-1.6.3-rc4.log`.
+          - Deux voyants rouge/vert dans un panneau distinct près de la fenêtre EssieuPilot historique (l'exécutable original n'est pas modifié).
           - Voyant ATS : détection de `amtrucks.exe` chaque seconde, aucune DLL nécessaire.
           - Voyant PILOTAGE : vert uniquement après réception d'un accusé de la DLL `EssieuPilotATS.dll` émis **APRÈS** l'appel de direction physique; cet accusé expire après 1,5 seconde. **Il ne prouve pas que l'angle des roues change réellement dans ATS.**
           - Si aucun accusé n'est reçu, le voyant pilotage reste rouge, même si ATS est lancé. L'icône près de l'horloge existe toujours.
@@ -216,6 +220,6 @@ jobs:
           - Les diagnostics du contrôleur sont dans %LOCALAPPDATA%/EssieuPilot/diagnostics.
           - L'installation stable 1.6.2 est préservée et peut rester utilisée.
           '@
-          gh release create $tag output/Installer_EssieuPilot_1.6.3_Essai.exe output/Plugins_ATS_EssieuPilot_1.6.3.zip output/EssieuPilot_1.6.3_RC3_Installateur_ZIP.zip --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title 'EssieuPilot 1.6.3 RC3 - voyants ATS / pilotage à tester' --prerelease --notes $notes
+          gh release create $tag output/Installer_EssieuPilot_1.6.3_Essai.exe output/Plugins_ATS_EssieuPilot_1.6.3.zip output/EssieuPilot_1.6.3_RC4_Installateur_ZIP.zip --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title 'EssieuPilot 1.6.3 RC4 - affichage des voyants corrigé' --prerelease --notes $notes
           if($LASTEXITCODE -ne 0){throw 'Publication GitHub échouée'}
           gh release view $tag --repo $env:GITHUB_REPOSITORY
