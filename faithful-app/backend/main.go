@@ -25,7 +25,7 @@ import (
 //go:embed web/*
 var frontend embed.FS
 
-const technicalVersion = "2.0.0-original.4"
+const technicalVersion = "2.0.0-original.5"
 
 type server struct {
 	telemetry telemetryBridge
