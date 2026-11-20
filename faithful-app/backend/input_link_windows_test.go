@@ -82,3 +82,22 @@ func TestForegroundWindowRecognizesGamePIDWithoutOpenProcess(t *testing.T) {
         t.Fatal("missing ATS process must never allow capture")
     }
 }
+
+func TestDirectionOnlyAuthorizedWhenManualModeArmedAndATSForeground(t *testing.T) {
+    cases := []struct {
+        name string
+        armed, running, foreground, saved, want bool
+    }{
+        {"inactive even with ATS", false, true, true, true, false},
+        {"armed and ATS foreground", true, true, true, true, true},
+        {"armed but alt tabbed", true, true, false, true, false},
+        {"armed but game closed", true, false, false, true, false},
+        {"armed but invalid profile", true, true, true, false, false},
+    }
+    for _, c := range cases {
+        t.Run(c.name,func(t *testing.T){
+            got:=steeringInstructionAllowed(c.armed,c.running,c.foreground,c.saved)
+            if got!=c.want {t.Fatalf("got %v want %v",got,c.want)}
+        })
+    }
+}
