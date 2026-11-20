@@ -1,0 +1,37 @@
+name: Prepare reconstructed backend for exact original EssieuPilot UI
+on:
+  push:
+    branches: ['development/original-ui-port']
+    paths:
+      - '.github/workflows/prepare-faithful-ui-backend.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore reconstructed sources validated by hash and preserve them for UI porting
+        run: |
+          set -euo pipefail
+          cat reconstruction/beta_sources.part*.b64 | tr -d '\n' | base64 -d > /tmp/reconstruction.tar.xz
+          echo '77c2376d6f8da59093dfdd08ecc1b8f54c7ff1db1fa0b2a6efe76c4d48a0d00b  /tmp/reconstruction.tar.xz' | sha256sum -c -
+          mkdir -p /tmp/source
+          tar -xJf /tmp/reconstruction.tar.xz -C /tmp/source
+          echo 'Reconstructed source manifest:'
+          find /tmp/source/backend /tmp/source/host -type f -printf '%p %s bytes\n' | head -100
+          mkdir -p faithful-app
+          cp -r /tmp/source/backend faithful-app/backend
+          cp -r /tmp/source/host faithful-app/host
+          cp /tmp/source/modern.js.patch faithful-app/modern.js.patch
+          cp /tmp/source/app.js.patch faithful-app/app.js.patch
+          cp /tmp/source/recover_assets.py faithful-app/recover_assets.py
+          # Authentic original visual assets recovered separately from official 1.6.2 installer.
+          cp -r original-ui-reference/. faithful-app/backend/web/
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add faithful-app/
+          git commit -m 'feat(faithful-ui): recover Windows host and backend that serve exact 1.6.2 visual assets'
+          git push origin HEAD:development/original-ui-port
