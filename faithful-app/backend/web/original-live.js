@@ -56,6 +56,50 @@
       busy = false;
     }
   }
+  // Stage 1 is displayed in the existing Diagnostic tab, not a new Pilotage tab.
+  const diag = document.querySelector('.modern-diagnostic');
+  if (diag) {
+    const row = document.createElement('div');
+    row.className = 'modern-diagnostic-row';
+    row.innerHTML = '<div><b>Touches configurables → canal DLL (étape 1)</b>' +
+      '<p id="epInputBridgeText">Chargement du profil enregistré…</p></div>' +
+      '<span id="epInputBridgeBadge" class="modern-pending-status">VÉRIFICATION</span>';
+    diag.appendChild(row);
+    let checking = false;
+    async function checkBindings() {
+      if (checking) return;
+      checking = true;
+      const text = document.getElementById('epInputBridgeText');
+      const badge = document.getElementById('epInputBridgeBadge');
+      try {
+        const res = await fetch('/api/control-link', {cache:'no-store'});
+        if (!res.ok) throw new Error('Aucune réponse du contrôleur');
+        const c = await res.json();
+        if (c.physical_control_enabled || c.dll_confirmed)
+          throw new Error('État physique non autorisé pendant le premier essai');
+        const name = c.profile_name || 'Aucun profil enregistré';
+        const keys = [
+          'Activation : ' + (c.toggle_binding || 'Non définie'),
+          'Gauche : ' + (c.left_binding || 'Non définie'),
+          'Droite : ' + (c.right_binding || 'Non définie')
+        ].join(' · ');
+        const last = c.last_input ? 'Dernière commande détectée : ' + c.last_input : 'Aucune commande détectée';
+        const focus = c.ats_foreground ? 'ATS au premier plan' : 'Ouvre ATS pour tester les touches';
+        text.textContent = name + ' — ' + keys + '. ' + last +
+          '. ' + focus + '. Canal IPC neutre : direction réelle non activée.';
+        badge.textContent = c.service_running && c.ipc_ready && c.profile_saved ? 'IPC PRÊT · TEST' : 'À VÉRIFIER';
+        badge.className = 'modern-pending-status';
+      } catch (error) {
+        text.textContent = 'Test des touches indisponible : ' + error.message;
+        badge.textContent = 'INDISPONIBLE';
+      } finally {
+        checking = false;
+      }
+    }
+    checkBindings();
+    setInterval(checkBindings, 500);
+  }
+
   showStatus(null);
   refresh();
   setInterval(refresh, 1000);
