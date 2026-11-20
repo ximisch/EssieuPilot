@@ -67,3 +67,18 @@ func TestManualStateSurvivesReturningToDiagnostic(t *testing.T) {
         t.Fatal("switching windows must not turn on disabled steering")
     }
 }
+
+func TestForegroundWindowRecognizesGamePIDWithoutOpenProcess(t *testing.T) {
+    if !foregroundMatchesATS(420, []uint32{412,420,600}) {
+        t.Fatal("ATS foreground PID missed among multiple running processes")
+    }
+    if foregroundMatchesATS(888, []uint32{412,420,600}) {
+        t.Fatal("capturing keys while unrelated process is foreground")
+    }
+    if foregroundMatchesATS(0, []uint32{0,420}) {
+        t.Fatal("invalid Windows foreground PID must never allow capture")
+    }
+    if foregroundMatchesATS(420, nil) {
+        t.Fatal("missing ATS process must never allow capture")
+    }
+}
