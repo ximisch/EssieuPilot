@@ -15,17 +15,17 @@ try {
   if (-not (Test-Path -LiteralPath $gui)) {throw "Application stable EssieuPilot.exe introuvable."}
   if (-not (Test-Path -LiteralPath $ctrl)) {throw "Contrôleur ATS EssieuPilotController.exe introuvable."}
 
-  # Independent ATS process indicator. No DLL is installed or loaded by this monitor.
-  $watch = Join-Path $root 'Watch-ATS.ps1'
-  if (-not (Test-Path -LiteralPath $watch)) { throw 'Diagnostic ATS introuvable (Watch-ATS.ps1).' }
-  $ps = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
-  $watchArgs = '-NoProfile -STA -WindowStyle Hidden -ExecutionPolicy Bypass -File "' + $watch + '" -ParentPid ' + $PID
-  $watcher = Start-Process -FilePath $ps -ArgumentList $watchArgs -WorkingDirectory $root -WindowStyle Hidden -PassThru
-  WriteLog "Diagnostic ATS lancé PID=$($watcher.Id). Vérification de amtrucks.exe toutes les secondes."
   $sidecar = Start-Process -FilePath $ctrl -WorkingDirectory $root -WindowStyle Hidden -PassThru
   WriteLog "Contrôleur lancé PID=$($sidecar.Id)."
   $main = Start-Process -FilePath $gui -WorkingDirectory $root -PassThru
   WriteLog "Interface EssieuPilot stable lancée PID=$($main.Id)."
+  # Show status over the EssieuPilot window without modifying its historical executable.
+  $watch = Join-Path $root 'Watch-ATS.ps1'
+  if (-not (Test-Path -LiteralPath $watch)) { throw 'Diagnostic ATS introuvable (Watch-ATS.ps1).' }
+  $ps = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+  $watchArgs = '-NoProfile -STA -WindowStyle Hidden -ExecutionPolicy Bypass -File "' + $watch + '" -GuiPid ' + $main.Id + ' -ParentPid ' + $PID
+  $watcher = Start-Process -FilePath $ps -ArgumentList $watchArgs -WorkingDirectory $root -WindowStyle Hidden -PassThru
+  WriteLog "Indicateurs ATS / pilotage lancés PID=$($watcher.Id), interface PID=$($main.Id)."
   $main.WaitForExit()
   WriteLog "Interface fermée, exit=$($main.ExitCode)."
 }
