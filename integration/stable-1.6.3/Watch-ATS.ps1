@@ -1,8 +1,16 @@
-# EssieuPilot 1.6.3 RC3: in-application ATS/steering status panel.
+# EssieuPilot 1.6.3 RC4: visible dual status tile anchored near the original GUI.
 # Uses a separate overlay process because the original 1.6.2 GUI source is unavailable.
 # Green steering requires a recent acknowledgement written by the ATS DLL AFTER its hook executed.
-param([int]$GuiPid = 0, [int]$ParentPid = 0, [switch]$SelfTest)
+param([int]$GuiPid = 0, [int]$ParentPid = 0, [switch]$SelfTest, [switch]$UiSmokeTest)
 $ErrorActionPreference='Stop'
+$diagnosticsDir=Join-Path $env:LOCALAPPDATA 'EssieuPilot\diagnostics'
+New-Item -ItemType Directory -Force -Path $diagnosticsDir | Out-Null
+$diagnosticsLog=Join-Path $diagnosticsDir 'indicateurs-1.6.3-rc4.log'
+function Write-Diagnostic([string]$message) {
+    try { Add-Content -LiteralPath $diagnosticsLog -Encoding UTF8 -Value (
+        '[{0}] {1}' -f (Get-Date -Format o),$message) } catch { }
+}
+Write-Diagnostic ("RC4 watcher started; GuiPid=$GuiPid ParentPid=$ParentPid SelfTest=$SelfTest UiSmokeTest=$UiSmokeTest")
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 Add-Type -TypeDefinition @'
@@ -78,16 +86,16 @@ if($SelfTest){
 }
 
 [System.Windows.Forms.Application]::EnableVisualStyles()
-$context=New-Object System.Windows.Forms.ApplicationContext
 $panel=New-Object System.Windows.Forms.Form
 $panel.Text='EssieuPilot - Connexions'
-$panel.FormBorderStyle=[System.Windows.Forms.FormBorderStyle]::FixedSingle
-$panel.ControlBox=$false
-$panel.ShowInTaskbar=$false
+$panel.FormBorderStyle=[System.Windows.Forms.FormBorderStyle]::FixedToolWindow
+$panel.ControlBox=$true
+$panel.ShowInTaskbar=$true
 $panel.StartPosition=[System.Windows.Forms.FormStartPosition]::Manual
-$panel.TopMost=$true
+$panel.TopMost=$false
 $panel.BackColor=[System.Drawing.Color]::FromArgb(15,29,46)
-$panel.ClientSize=New-Object System.Drawing.Size(290,82)
+$panel.ClientSize=New-Object System.Drawing.Size(330,88)
+$panel.Location=New-Object System.Drawing.Point(40,120)
 $panel.Font=New-Object System.Drawing.Font('Segoe UI',9)
 $heading=New-Object System.Windows.Forms.Label
 $heading.Text='ESSIEUPILOT - CONNEXIONS'
@@ -102,7 +110,7 @@ $gameLamp.SetBounds(10,25,24,25)
 $panel.Controls.Add($gameLamp)
 $gameText=New-Object System.Windows.Forms.Label
 $gameText.ForeColor=[System.Drawing.Color]::White
-$gameText.SetBounds(38,28,246,21)
+$gameText.SetBounds(38,28,285,21)
 $panel.Controls.Add($gameText)
 $pilotLamp=New-Object System.Windows.Forms.Label
 $pilotLamp.Text=[char]0x25CF
@@ -111,7 +119,7 @@ $pilotLamp.SetBounds(10,51,24,25)
 $panel.Controls.Add($pilotLamp)
 $pilotText=New-Object System.Windows.Forms.Label
 $pilotText.ForeColor=[System.Drawing.Color]::White
-$pilotText.SetBounds(38,54,246,21)
+$pilotText.SetBounds(38,54,285,21)
 $panel.Controls.Add($pilotText)
 $tooltip=New-Object System.Windows.Forms.ToolTip
 $tooltip.SetToolTip($pilotText,'Vert = la DLL a execute un appel de direction recemment; roues non encore verifiees.')
@@ -124,6 +132,9 @@ $tray.Icon=[System.Drawing.SystemIcons]::Application
 $tray.Text='EssieuPilot : controle ATS'
 $tray.Visible=$true
 $menu=New-Object System.Windows.Forms.ContextMenuStrip
+$showItem=New-Object System.Windows.Forms.ToolStripMenuItem('Afficher les deux voyants')
+$showItem.Add_Click({ $panel.Show(); $panel.WindowState=[System.Windows.Forms.FormWindowState]::Normal; $panel.Activate() })
+[void]$menu.Items.Add($showItem)
 $menuItem=New-Object System.Windows.Forms.ToolStripMenuItem('Afficher le diagnostic')
 $menuItem.Add_Click({
     [void][System.Windows.Forms.MessageBox]::Show(
@@ -134,13 +145,26 @@ $menuItem.Add_Click({
 })
 [void]$menu.Items.Add($menuItem)
 $tray.ContextMenuStrip=$menu
-$tray.Add_DoubleClick({ [void]$menuItem.PerformClick() })
+$tray.Add_DoubleClick({ [void]$showItem.PerformClick() })
+$script:lastWarning=''
+$script:closingByLauncher=$false
+$panel.Add_FormClosing({
+    if ($_.CloseReason -eq [System.Windows.Forms.CloseReason]::UserClosing -and
+        -not $script:closingByLauncher) {
+        $_.Cancel=$true
+        $panel.Hide()
+        Write-Diagnostic 'Panel manually hidden; recover using system tray.'
+    }
+})
+$panel.Add_Shown({ Write-Diagnostic ("RC4 panel SHOWN; HWND=$($panel.Handle) visible=$($panel.Visible)") })
 $timer=New-Object System.Windows.Forms.Timer
 $timer.Interval=1000
 $timer.Add_Tick({
     try {
         if ($ParentPid -gt 0 -and $null -eq (Get-Process -Id $ParentPid -ErrorAction SilentlyContinue)) {
-            [System.Windows.Forms.Application]::ExitThread()
+            $script:closingByLauncher=$true
+            Write-Diagnostic 'Parent launcher exited; closing status panel.'
+            $panel.Close()
             return
         }
         $game=Get-AtsRunning
@@ -156,31 +180,70 @@ $timer.Add_Tick({
         if($script:lastGame -ne 'initial' -and $script:lastGame -ne $script:gameDisplay){
             $tray.ShowBalloonTip(2500,'EssieuPilot',$script:gameDisplay,[System.Windows.Forms.ToolTipIcon]::Info)
         }
+        if ($script:lastGame -ne $script:gameDisplay) {Write-Diagnostic ($script:gameDisplay + '; ' + $script:pilotDisplay)}
         $script:lastGame=$script:gameDisplay
-        $gui=Get-Process -Id $GuiPid -ErrorAction SilentlyContinue
-        if($null -eq $gui){$panel.Hide();return}
-        $gui.Refresh()
-        $hwnd=$gui.MainWindowHandle
-        if($hwnd -eq [IntPtr]::Zero -or [EPStatusNative]::IsIconic($hwnd)){$panel.Hide();return}
+        # A previous RC3 bug silently hid the entire panel if the process had
+        # no MainWindowHandle (bootstrap launcher) or focus was outside the GUI.
+        # RC4 NEVER hides the panel because of a missing HWND.
+        if ($GuiPid -gt 0) {
+            $gui=Get-Process -Id $GuiPid -ErrorAction SilentlyContinue
+            if ($null -ne $gui) {
+                $gui.Refresh()
+                $hwnd=$gui.MainWindowHandle
+                if ($hwnd -ne [IntPtr]::Zero -and -not [EPStatusNative]::IsIconic($hwnd)) {
+                    $rect=New-Object EPStatusNative+RECT
+                    if ([EPStatusNative]::GetWindowRect($hwnd,[ref]$rect)) {
+                        $screen=[System.Windows.Forms.Screen]::FromHandle($hwnd).WorkingArea
+                        $panel.Left=[Math]::Max($screen.Left,[Math]::Min(
+                            $rect.Right-$panel.Width-24,$screen.Right-$panel.Width))
+                        $panel.Top=[Math]::Max($screen.Top,[Math]::Min(
+                            $rect.Top+95,$screen.Bottom-$panel.Height))
+                    }
+                } elseif ($script:lastWarning -ne 'no_handle') {
+                    Write-Diagnostic 'GUI has no window handle yet; keeping the status panel visible separately.'
+                    $script:lastWarning='no_handle'
+                }
+            }
+        }
+        # Only float above the original GUI while it is foreground.
+        # Do not cover ATS when the player switches into the game.
         $fg=[EPStatusNative]::GetForegroundWindow()
         [uint32]$fgpid=0
-        [void][EPStatusNative]::GetWindowThreadProcessId($fg,[ref]$fgpid)
-        # Show the status tile only with the EssieuPilot application, not over other apps.
-        if ($fgpid -ne $GuiPid -and $fgpid -ne [uint32]$PID) {$panel.Hide();return}
-        $rect=New-Object EPStatusNative+RECT
-        if(-not [EPStatusNative]::GetWindowRect($hwnd,[ref]$rect)){$panel.Hide();return}
-        $panel.Left=[Math]::Max($rect.Left+10,$rect.Right-$panel.Width-26)
-        $panel.Top=[Math]::Max($rect.Top+35,$rect.Bottom-$panel.Height-48)
-        if(-not $panel.Visible){$panel.Show()}
+        if ($fg -ne [IntPtr]::Zero) {
+            [void][EPStatusNative]::GetWindowThreadProcessId($fg,[ref]$fgpid)
+        }
+        $panel.TopMost=($fgpid -eq [uint32]$GuiPid -or $fgpid -eq [uint32]$PID)
     } catch {
-        # Keep the main GUI usable even if the optional status panel fails.
-        try{$panel.Hide()}catch{}
+        # Log rather than silently hiding the only visible status indicator.
+        $message=$_.Exception.ToString()
+        if ($message -ne $script:lastWarning) {
+            Write-Diagnostic ("Status panel tick error: " + $message)
+            $script:lastWarning=$message
+        }
+        $panel.TopMost=$false
     }
 })
+if($UiSmokeTest){
+    $panel.Add_Shown({
+        if (-not $panel.Visible -or $panel.Handle -eq [IntPtr]::Zero -or -not $panel.ShowInTaskbar) {
+            Write-Diagnostic 'UI smoke test failed: form invisible or no handle/taskbar presence.'
+            [Environment]::Exit(3)
+        }
+        Write-Diagnostic 'UI smoke test passed: form visible and has a taskbar entry.'
+        $script:closingByLauncher=$true
+        $panel.Close()
+    })
+}
 try{
     $timer.Start()
-    [System.Windows.Forms.Application]::Run($context)
+    # Application.Run(Form) guarantees a first Show/Shown event; the old
+    # Application.Run(ApplicationContext) never opened the form at startup.
+    [System.Windows.Forms.Application]::Run($panel)
+} catch {
+    Write-Diagnostic ("Watcher fatal: " + $_.Exception.ToString())
+    throw
 } finally{
+    Write-Diagnostic 'Watcher exited.'
     $timer.Stop()
     $timer.Dispose()
     $tray.Visible=$false
@@ -188,5 +251,4 @@ try{
     $panel.Dispose()
     $menu.Dispose()
     $tooltip.Dispose()
-    $context.Dispose()
 }
