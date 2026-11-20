@@ -1,4 +1,4 @@
-name: Prepare stage-1 configurable input bridge from verified prototype
+name: Prepare stage-1 configurable input bridge from verified prototype (regression fixed)
 on:
   push:
     branches: ['development/original-ui-port']
