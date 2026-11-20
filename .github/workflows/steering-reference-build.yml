@@ -1,10 +1,11 @@
-name: EssieuPilot R&D - compile steering reference (NO RELEASE)
+name: EssieuPilot R&D - compile physical bridge (NO RELEASE)
 
 on:
   push:
     branches: ['development/ats-integration']
     paths:
       - '.github/workflows/steering-reference-build.yml'
+      - 'integration/bridge/**'
   workflow_dispatch:
 
 permissions:
@@ -40,13 +41,24 @@ jobs:
           Write-Host 'Reference code: manually steerable trailer unit, NOT a validated per-axle implementation.'
           Write-Host 'Compiled DLL must NOT be distributed or installed until ATS 1.62 offsets and crash safety are tested.'
 
+      - name: Apply EssieuPilot IPC bridge source patch
+        shell: pwsh
+        run: |
+          python integration/bridge/patch_upstream.py upstream-ts-extra
+          if ($LASTEXITCODE -ne 0) { throw 'Reference source patch failed' }
+          $patched = Get-Content -Raw upstream-ts-extra/src/windows/trailer_manipulation.cpp
+          if (-not $patched.Contains('epbridge::read')) { throw 'Physical IPC bridge was not applied' }
+          $entry = Get-Content -Raw upstream-ts-extra/src/main.cpp
+          if (-not $entry.Contains('SCS_GET_MINOR_VERSION')) { throw 'ATS version gate missing' }
+          Write-Host 'Patched physical trailer bridge from pinned MIT source (R&D only).'
+
       - name: Configure Windows x64 native plugin
         shell: pwsh
         run: |
           cmake -S upstream-ts-extra -B upstream-build -G 'Visual Studio 17 2022' -A x64
           if ($LASTEXITCODE -ne 0) {throw 'CMake configure failed'}
 
-      - name: Compile reference plugin (without executing it)
+      - name: Compile reference bridge plugin (without executing it)
         shell: pwsh
         run: |
           cmake --build upstream-build --config Release --parallel 2
@@ -66,7 +78,7 @@ jobs:
           Source: https://github.com/dariowouters/ts-extra-utilities
           Commit: 41b307496960732571de8e43100adba75cd115a1
           License: MIT (upstream LICENSE.md)
-          NO ATTACHED DLL: one needs to inspect version-specific ATS 1.62 signatures/offsets
+          NO ATTACHED DLL: IPC bridge compiles, but ATS 1.62 signatures/offsets still require inspection
           and crash-safety before compiling an EssieuPilot integration for actual installation.
           This example controls steering per trailer unit, not independently per axle.
           No Convoi/multiplayer compatibility claims.
