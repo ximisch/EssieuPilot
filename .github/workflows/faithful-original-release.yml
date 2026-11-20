@@ -38,15 +38,26 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference='Stop'
-          foreach($f in @('index.html','styles.css','modern.css','app.js','modern.js','steering_logic.js','logo.png','hero_reference.jpg')) {
+          foreach($f in @('index.html','styles.css','modern.css','app.js','steering_logic.js','logo.png','hero_reference.jpg')) {
             $original=(Get-FileHash "original-ui-reference/$f" -Algorithm SHA256).Hash
             $rebuilt=(Get-FileHash "faithful-app/backend/web/$f" -Algorithm SHA256).Hash
             if($original -ne $rebuilt) {throw "Original interface changed unexpectedly: $f"}
           }
-          if(-not ((Get-Content -Raw 'faithful-app/backend/web/modern.js').Contains('ESSIEUPILOT /'))) {
-            Write-Host 'Original modern.js verified by matching exact recovered file hashes.'
+          # Exactly one intentional change in modern.js: do not override the ATS process
+          # game status with the telemetry SDK connection status.
+          $source=[IO.File]::ReadAllText("original-ui-reference/modern.js")
+          $actual=[IO.File]::ReadAllText("faithful-app/backend/web/modern.js")
+          $old="    if(status)status.textContent=connected?'● Connecté (lecture)':'● Non connecté';"
+          $fixed="    // Ne jamais écraser le voyant ATS du jeu : sa source est /api/status, pas la télémétrie SCS."
+          if($source.Split([string[]]@($old),[StringSplitOptions]::None).Length -ne 2) {throw 'Unexpected original telemetry renderer'}
+          if($actual -cne $source.Replace($old,$fixed)) {throw 'Unexpected redesign in modern.js'}
+          $live=[IO.File]::ReadAllText("faithful-app/backend/web/original-live.js")
+          foreach($needle in @("aside.querySelector('.connection')?.remove()","aside.querySelector('#originalPhysicalPilotStatus')?.remove()","title.textContent = 'ATS · EN LIGNE'","title.textContent = 'ATS · HORS LIGNE'","fetch('/api/status'")) {
+            if(-not $live.Contains($needle)) {throw "Original ATS status correction absent: $needle"}
           }
-          Write-Host 'PASS: all original UI assets exactly match verified v1.6.2'
+          node --check faithful-app/backend/web/original-live.js
+          if($LASTEXITCODE -ne 0) {throw 'Original status script JS check failed'}
+          Write-Host 'PASS: original UI unchanged except documented status sync, only top ATS lamp remains'
 
       - name: Test Go backend, update channel safety, compile
         shell: pwsh
@@ -101,7 +112,7 @@ jobs:
               throw 'ATS dual status API invalid'
             }
             $up=Invoke-RestMethod -Uri ($ready+'api/updates')
-            if($up.version -ne '2.0.0-original.1' -or -not $up.feed_configured){
+            if($up.version -ne '2.0.0-original.2' -or -not $up.feed_configured){
               throw 'In-app update service not configured'
             }
             Write-Host 'PASS: Original HTML, /api/status and /api/updates live on Windows'
@@ -132,7 +143,7 @@ jobs:
       - name: Upload validated Windows installer for diagnostics
         uses: actions/upload-artifact@v4
         with:
-          name: EssieuPilot-Original-UI-test1-Windows
+          name: EssieuPilot-Original-UI-test2-Windows
           path: |
             release/Installer_EssieuPilot.exe
             release/EssieuPilot_Interface_Originale_ZIP.zip
@@ -144,7 +155,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $ErrorActionPreference='Stop'
-          $tag='v2.0.0-original.1'
+          $tag='v2.0.0-original.2'
           gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null
           if($LASTEXITCODE -eq 0){throw 'Already published: refusing duplicate release'}
           $notes=@'
@@ -152,13 +163,15 @@ jobs:
           
           - Reproduction **à partir des ressources originales extraites et vérifiées de la release officielle 1.6.2** : CSS, images, navigation, tableau de bord, profils, simulation 2D/3D, commandes, menus. Aucune nouvelle maquette.
           - Fenêtre Windows EssieuPilot native hébergeant les fichiers d'interface authentiques.
-          - Deux voyants ATS et Pilotage dans la barre latérale historique, avec la même mise en forme.
+          - **Correctif depuis la version originale.1 :** les deux encadrés du bas « ATS NON CONNECTÉ » et « PILOTAGE NON CONFIRMÉ » disparaissent. Seul le voyant supérieur « ATS · EN LIGNE / HORS LIGNE » reste, alimenté directement par la détection du processus réel amtrucks.exe, sans DLL.
+          - Le statut du jeu dans le tableau de bord est synchronisé avec la même détection. La télémétrie SCS reste visible uniquement dans l'onglet Diagnostic et ne peut plus écraser l'état ATS.
+          - Aucun onglet pilotage supplémentaire dans cette version : nous l'ajouterons après validation réelle.
           - Page **Mises à jour** de l'interface d'origine : vérification des releases de ce seul canal d'essai, validation SHA-256, téléchargement et ouverture de l'installateur après accord.
           - Installation test séparée, sans toucher à la version officielle 1.6.2 ou aux anciens profils.
           - Le pilotage physique et Convoi restent NON validés ; la DLL expérimentale n'est pas installée automatiquement.
           - Cette édition nécessite Microsoft Edge WebView2 Runtime pour héberger l'interface HTML à l'intérieur d'une seule fenêtre Windows. Le journal de démarrage se trouve dans %LOCALAPPDATA%/EssieuPilot/diagnostics/original-ui-startup.log.
           - Compilation et tests automatisés Windows réussis. Doit encore être testé sur le PC de l'utilisateur.
           '@
-          gh release create $tag release/Installer_EssieuPilot.exe release/EssieuPilot_Interface_Originale_ZIP.zip --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title 'EssieuPilot — essai interface officielle originale conservée' --prerelease --notes $notes
+          gh release create $tag release/Installer_EssieuPilot.exe release/EssieuPilot_Interface_Originale_ZIP.zip --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title 'EssieuPilot — correctif du statut ATS dans interface originale (mise à jour intégrée)' --prerelease --notes $notes
           if($LASTEXITCODE -ne 0){throw 'Publication failed'}
           gh release view $tag --repo $env:GITHUB_REPOSITORY
