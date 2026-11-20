@@ -1,6 +1,7 @@
 # EssieuPilot 1.6.3 — stable original GUI + ATS steering companion
 # No WebView2 reconstruction. User's existing stable profiles remain untouched.
 $ErrorActionPreference = "Stop"
+Add-Type -AssemblyName System.Windows.Forms
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $gui = Join-Path $root "EssieuPilot.exe"
 $ctrl = Join-Path $root "EssieuPilotController.exe"
