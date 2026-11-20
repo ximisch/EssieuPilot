@@ -118,6 +118,27 @@ jobs:
             gofmt -w steering_protocol.go steering_protocol_test.go steering_bridge_windows.go steering_bridge_other.go steering_runtime_windows.go steering_runtime_other.go main.go
           } finally { Pop-Location }
 
+      - name: Vérifier la détection ATS sans DLL dans l'interface de développement
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          python integration/process_detection/apply_detection.py .
+          if ($LASTEXITCODE -ne 0) { throw 'Intégration du statut ATS refusée' }
+          Copy-Item integration/process_detection/process_detection_test.go backend/process_detection_test.go
+          Push-Location backend
+          try {
+            gofmt -w main.go process_detection_test.go
+            node --check web/modern.js
+            if ($LASTEXITCODE -ne 0) { throw 'Erreur JavaScript dans le statut ATS' }
+            if(-not (Select-String -Path web/modern.js -Pattern 'setInterval\(pollATSProcess,1000\)' -Quiet)) {
+              throw 'Surveillance ATS par seconde absente'
+            }
+            if(-not (Select-String -Path main.go -Pattern 'GET /api/ats/process' -Quiet)) {
+              throw 'Route de détection ATS absente'
+            }
+          } finally { Pop-Location }
+          Write-Host 'Process amtrucks.exe: API et interface intégrées SANS DLL ATS (dev seulement).'
+
       - name: Tests du moteur et de la télémétrie
         shell: pwsh
         run: |
