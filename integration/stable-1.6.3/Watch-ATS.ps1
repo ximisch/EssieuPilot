@@ -88,7 +88,7 @@ if($SelfTest){
 [System.Windows.Forms.Application]::EnableVisualStyles()
 $panel=New-Object System.Windows.Forms.Form
 $panel.Text='EssieuPilot - Connexions'
-$panel.FormBorderStyle=[System.Windows.Forms.FormBorderStyle]::FixedToolWindow
+$panel.FormBorderStyle=[System.Windows.Forms.FormBorderStyle]::FixedSingle
 $panel.ControlBox=$true
 $panel.ShowInTaskbar=$true
 $panel.StartPosition=[System.Windows.Forms.FormStartPosition]::Manual
