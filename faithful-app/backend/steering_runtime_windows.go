@@ -459,8 +459,10 @@ func startSteeringRuntime(s *server) func() {
 					addHistory(lastInput, now)
 				}
 				prevAnalog = analog
-				snapshot.LeftPressed = left && manual
-				snapshot.RightPressed = right && manual
+				allowedNow := steeringInstructionAllowed(manual, gameRunning, foreground, found)
+				snapshot.HeldDirection = heldDirection(allowedNow, left, right)
+				snapshot.LeftPressed = snapshot.HeldDirection == "GAUCHE"
+				snapshot.RightPressed = snapshot.HeldDirection == "DROITE"
 			}
 			snapshot.ManualArmed = manual
 			snapshot.SteeringInputAllowed = steeringInstructionAllowed(manual, gameRunning, foreground, found)
@@ -516,6 +518,15 @@ func retainManualOnFocusChange(manual, gameRunning bool) bool {
 // exclusively neutral packets to the prototype DLL.
 func steeringInstructionAllowed(armed, gameRunning, foreground, profileFound bool) bool {
 	return armed && gameRunning && foreground && profileFound
+}
+
+// Each controller tick evaluates held button state rather than reusing
+// rising-edge events. One held press is sufficient; contradictory inputs
+// cancel each other. This is a DIAGNOSTIC only until the ATS DLL is validated.
+func heldDirection(authorized, left, right bool) string {
+	if !authorized || left == right { return "" }
+	if left {return "GAUCHE"}
+	return "DROITE"
 }
 
 // risingEdge records one press per key-down transition. It does not
