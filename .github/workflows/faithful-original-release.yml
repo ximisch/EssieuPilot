@@ -139,7 +139,7 @@ jobs:
             if($control.physical_control_enabled){throw 'Unsafe physical steering enabled during key test'}
             Write-Host 'PASS: GUI saved F12/J/K keys were applied dynamically by input controller; IPC neutral'
             $up=Invoke-RestMethod -Uri ($ready+'api/updates')
-            if($up.version -ne '2.0.0-original.5' -or -not $up.feed_configured){
+            if($up.version -ne '2.0.0-original.6' -or -not $up.feed_configured){
               throw 'In-app update service not configured'
             }
             Write-Host 'PASS: Original HTML, /api/status, /api/control-link and /api/updates on Windows'
@@ -170,7 +170,7 @@ jobs:
       - name: Upload validated Windows installer for diagnostics
         uses: actions/upload-artifact@v4
         with:
-          name: EssieuPilot-Original-UI-test5-Windows
+          name: EssieuPilot-Original-UI-test6-Windows
           path: |
             release/Installer_EssieuPilot.exe
             release/EssieuPilot_Interface_Originale_ZIP.zip
@@ -182,7 +182,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $ErrorActionPreference='Stop'
-          $tag='v2.0.0-original.5'
+          $tag='v2.0.0-original.6'
           gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null
           if($LASTEXITCODE -eq 0){throw 'Already published: refusing duplicate release'}
           $notes=@'
@@ -190,6 +190,9 @@ jobs:
           
           - Reproduction **à partir des ressources originales extraites et vérifiées de la release officielle 1.6.2** : CSS, images, navigation, tableau de bord, profils, simulation 2D/3D, commandes, menus. Aucune nouvelle maquette.
           - Fenêtre Windows EssieuPilot native hébergeant les fichiers d'interface authentiques.
+          - **Correction Original.6 :** les touches gauche/droite sont détectées en brut mais les commandes de direction ne sont autorisées que lorsque le mode est ACTIF, ATS lancé/au premier plan et le profil enregistré. Compteurs séparés pour diagnostic et commandes autorisées.
+          - **Touches maintenues :** l'état continu GAUCHE/DROITE est lu à chaque cycle de 40 ms ; une touche maintenue vaut une seule commande continue, sans pression répétée. Les deux touches en même temps annulent la consigne et la sortie physique reste neutralisée.
+          - **Limite de sécurité :** pas d'angles mathématiquement infinis dans ATS. Durée de maintien sans limite, limite angulaire du profil appliquée seulement après validation du moteur physique.
           - **Correction Original.5 :** le contrôleur reconnaît la fenêtre active d'ATS en comparant directement les identifiants de processus Windows. Cela évite l'échec de la méthode précédente lorsque Windows refuse l'ouverture du processus ATS.
           - **Diagnostic enrichi :** indique si les touches sont lues, pourquoi elles seraient ignorées, les PID fenêtre active/ATS et les codes réels des touches gauche/droite. Les compteurs ne prouvent que la détection des entrées, pas un mouvement des roues.
           - **Correction Original.4 :** le mode activé/désactivé est conservé au retour d'ATS vers l'onglet Diagnostic. L'historique indique chaque appui sur les touches gauche/droite, même quand le mode est désactivé.
@@ -207,6 +210,6 @@ jobs:
           - Cette édition nécessite Microsoft Edge WebView2 Runtime pour héberger l'interface HTML à l'intérieur d'une seule fenêtre Windows. Le journal de démarrage se trouve dans %LOCALAPPDATA%/EssieuPilot/diagnostics/original-ui-startup.log.
           - Compilation et tests automatisés Windows réussis. Doit encore être testé sur le PC de l'utilisateur.
           '@
-          gh release create $tag release/Installer_EssieuPilot.exe release/EssieuPilot_Interface_Originale_ZIP.zip --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title 'EssieuPilot — correction de la capture des touches gauche droite dans ATS' --prerelease --notes $notes
+          gh release create $tag release/Installer_EssieuPilot.exe release/EssieuPilot_Interface_Originale_ZIP.zip --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title 'EssieuPilot — touches maintenues et verrouillage INACTIF' --prerelease --notes $notes
           if($LASTEXITCODE -ne 0){throw 'Publication failed'}
           gh release view $tag --repo $env:GITHUB_REPOSITORY
