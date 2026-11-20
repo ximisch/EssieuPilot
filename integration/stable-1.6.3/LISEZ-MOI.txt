@@ -1,4 +1,4 @@
-ESSIEUPILOT 1.6.3 RC3 — DEUX VOYANTS ATS ET PILOTAGE
+ESSIEUPILOT 1.6.3 RC4 — DEUX VOYANTS CORRIGÉS
 ====================================================
 
 CECI EST UNE PREVERSION DE VALIDATION, PAS UNE VERSION FONCTIONNELLE
@@ -9,10 +9,15 @@ les trois libellés techniques "1.6.2" sont remplacés par "1.6.3".
 Le nouveau contrôleur ATS s'exécute en parallèle sans WebView2 ni
 serveur EssieuPilot local. Cela évite les erreurs des bêtas 1.7.0.
 
-NOUVEAU DANS RC3 :
-- Deux voyants rouges/verts dans un petit panneau superposé à la fenêtre
-  EssieuPilot. Il suit la fenêtre et disparaît quand elle n'est pas active.
+NOUVEAU DANS RC4 :
+- Correction d'un défaut d'affichage du panneau de la RC3.
+- Deux voyants rouges/verts dans une petite fenêtre Windows séparée
+  qui s'ouvre automatiquement avec EssieuPilot, à proximité de la fenêtre.
+  Un accès dans la barre des tâches permet de retrouver les voyants.
+  Clic droit sur l'icône près de l'horloge > Afficher les deux voyants.
   L'interface historique n'est pas recompilée; le panneau est séparé.
+- Le diagnostic de démarrage et d'affichage est consigné dans :
+    %LOCALAPPDATA%\EssieuPilot\diagnostics\indicateurs-1.6.3-rc4.log
 - Voyant 1 : ATS EN LIGNE (vert = amtrucks.exe détecté); rouge = fermé
   ou état indisponible. Aucun plugin de jeu n'est nécessaire.
 - Voyant 2 : PILOTAGE (vert = retour récent de la DLL depuis l'appel
@@ -40,7 +45,7 @@ INSTALLATION :
 2. Installer et lancer via le raccourci "EssieuPilot - essai ATS".
    Le raccourci lance le programme original et le contrôleur ensemble.
 3. Ne pas copier les DLL dans ATS pour le premier démarrage :
-   vérifier le panneau aux deux voyants dans la fenêtre EssieuPilot.
+   vérifier le panneau séparé aux deux voyants à côté d'EssieuPilot.
    Lancer puis fermer ATS et observer le premier voyant.
    Le deuxième restera rouge tant que la DLL physique ne répond pas.
 4. Ensuite, fermer ATS, faire une sauvegarde de la partie et copier
@@ -61,6 +66,7 @@ INSTALLATION :
 DIAGNOSTICS :
   %LOCALAPPDATA%\EssieuPilot\diagnostics\launcher-1.6.3.log
   %LOCALAPPDATA%\EssieuPilot\diagnostics\controller-1.6.3.log
+  %LOCALAPPDATA%\EssieuPilot\diagnostics\indicateurs-1.6.3-rc4.log
 
 IMPORTANT :
 - Le panneau rouge/vert est dessiné par un processus compagnon superposé
