@@ -1,0 +1,164 @@
+name: EssieuPilot — original 1.6.2 interface with native window and updates (test)
+
+on:
+  push:
+    branches: ['development/original-ui-port']
+    paths:
+      - 'faithful-app/**'
+      - 'installer/EssieuPilot-Original.iss'
+      - '.github/workflows/faithful-original-release.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: essieupilot-original-test-release
+  cancel-in-progress: true
+
+jobs:
+  package:
+    runs-on: windows-2022
+    timeout-minutes: 45
+    steps:
+      - name: Checkout faithful original UI
+        uses: actions/checkout@v4
+
+      - name: Go 1.23
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.23.2'
+
+      - name: .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Check original UI remains authentic and not redesigned
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          foreach($f in @('index.html','styles.css','modern.css','app.js','modern.js','steering_logic.js','logo.png','hero_reference.jpg')) {
+            $original=(Get-FileHash "original-ui-reference/$f" -Algorithm SHA256).Hash
+            $rebuilt=(Get-FileHash "faithful-app/backend/web/$f" -Algorithm SHA256).Hash
+            if($original -ne $rebuilt) {throw "Original interface changed unexpectedly: $f"}
+          }
+          if(-not ((Get-Content -Raw 'faithful-app/backend/web/modern.js').Contains('ESSIEUPILOT /'))) {
+            Write-Host 'Original modern.js verified by matching exact recovered file hashes.'
+          }
+          Write-Host 'PASS: all original UI assets exactly match verified v1.6.2'
+
+      - name: Test Go backend, update channel safety, compile
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          New-Item -ItemType Directory -Force 'out' | Out-Null
+          Push-Location 'faithful-app/backend'
+          try {
+            gofmt -w *.go
+            go test -v ./...
+            if($LASTEXITCODE -ne 0){throw 'Backend tests failed'}
+            go build -trimpath -o ../../out/EssieuPilotBackend.exe .
+            if($LASTEXITCODE -ne 0){throw 'Backend build failed'}
+          } finally {Pop-Location}
+          if(-not(Test-Path 'out/EssieuPilotBackend.exe')){throw 'Go backend absent'}
+
+      - name: Compile Windows host with original UI and check real form creation
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          New-Item -ItemType Directory -Force 'faithful-app/host/Assets' | Out-Null
+          Copy-Item faithful-app/backend/web/EssieuPilot.ico faithful-app/host/Assets/EssieuPilot.ico
+          dotnet publish faithful-app/host/EssieuPilot.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true --output out
+          if($LASTEXITCODE -ne 0){throw 'Host compile failed'}
+          if(-not(Test-Path 'out/EssieuPilot.exe')){throw 'Native Windows executable absent'}
+          & .\out\EssieuPilot.exe --ui-smoke
+          if($LASTEXITCODE -ne 0){throw 'Original native window did not open'}
+          Write-Host 'PASS: WinForms host with original interface opens'
+
+      - name: Test original HTTP interface and live status endpoint on Windows
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $p=Start-Process -FilePath (Resolve-Path 'out/EssieuPilotBackend.exe').Path -PassThru -NoNewWindow -RedirectStandardOutput 'ready.txt' -RedirectStandardError 'backend-errors.txt'
+          try {
+            $ready=$null
+            for($i=0;$i -lt 60;$i++){
+              Start-Sleep -Milliseconds 300
+              if(Test-Path ready.txt) {
+                $match=Select-String -Path ready.txt -Pattern '^READY http://127\.0\.0\.1:[0-9]+/' | Select-Object -First 1
+                if($match) {$ready=([string]$match.Line).Substring(6);break}
+              }
+              if($p.HasExited){throw 'Backend quit during startup'}
+            }
+            if(-not $ready){throw 'Backend HTTP endpoint not ready'}
+            $web=Invoke-WebRequest -Uri $ready -UseBasicParsing
+            if($web.StatusCode -ne 200 -or -not $web.Content.Contains('modern.css') -or -not $web.Content.Contains('original-live.js')){
+              throw 'Original interface HTML not served correctly'
+            }
+            $status=Invoke-RestMethod -Uri ($ready+'api/status')
+            if($null -eq $status.game_running -or $null -eq $status.steering_ack){
+              throw 'ATS dual status API invalid'
+            }
+            $up=Invoke-RestMethod -Uri ($ready+'api/updates')
+            if($up.version -ne '2.0.0-original.1' -or -not $up.feed_configured){
+              throw 'In-app update service not configured'
+            }
+            Write-Host 'PASS: Original HTML, /api/status and /api/updates live on Windows'
+          } finally {
+            if(-not $p.HasExited){Stop-Process -Id $p.Id -Force}
+          }
+
+      - name: Build isolated Windows installer and ZIP backup
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          choco install innosetup -y --no-progress
+          if($LASTEXITCODE -ne 0){throw 'Inno Setup missing'}
+          $iscc=Join-Path ([Environment]::GetFolderPath('ProgramFilesX86')) 'Inno Setup 6\ISCC.exe'
+          New-Item -ItemType Directory -Force release | Out-Null
+          $env:EP_PUBLISH_DIR=(Resolve-Path out).Path
+          $env:EP_OUT_DIR=(Resolve-Path release).Path
+          $env:EP_APP_VERSION='2.0.0'
+          & $iscc 'installer/EssieuPilot-Original.iss'
+          if($LASTEXITCODE -ne 0){throw 'Installer build failed'}
+          $installer='release/Installer_EssieuPilot.exe'
+          if(-not(Test-Path $installer)){throw 'Installer missing'}
+          Compress-Archive -Path $installer -DestinationPath 'release/EssieuPilot_Interface_Originale_ZIP.zip' -CompressionLevel Optimal
+          Expand-Archive -LiteralPath 'release/EssieuPilot_Interface_Originale_ZIP.zip' -DestinationPath 'verify'
+          if((Get-FileHash $installer -Algorithm SHA256).Hash -ne (Get-FileHash 'verify/Installer_EssieuPilot.exe' -Algorithm SHA256).Hash){throw 'ZIP invalid'}
+          Get-FileHash $installer -Algorithm SHA256
+
+      - name: Upload validated Windows installer for diagnostics
+        uses: actions/upload-artifact@v4
+        with:
+          name: EssieuPilot-Original-UI-test1-Windows
+          path: |
+            release/Installer_EssieuPilot.exe
+            release/EssieuPilot_Interface_Originale_ZIP.zip
+          retention-days: 21
+
+      - name: Publish separate test version with original UI (NOT stable)
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference='Stop'
+          $tag='v2.0.0-original.1'
+          gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null
+          if($LASTEXITCODE -eq 0){throw 'Already published: refusing duplicate release'}
+          $notes=@'
+          # EssieuPilot — interface originale 1.6.2 conservée
+          
+          - Reproduction **à partir des ressources originales extraites et vérifiées de la release officielle 1.6.2** : CSS, images, navigation, tableau de bord, profils, simulation 2D/3D, commandes, menus. Aucune nouvelle maquette.
+          - Fenêtre Windows EssieuPilot native hébergeant les fichiers d'interface authentiques.
+          - Deux voyants ATS et Pilotage dans la barre latérale historique, avec la même mise en forme.
+          - Page **Mises à jour** de l'interface d'origine : vérification des releases de ce seul canal d'essai, validation SHA-256, téléchargement et ouverture de l'installateur après accord.
+          - Installation test séparée, sans toucher à la version officielle 1.6.2 ou aux anciens profils.
+          - Le pilotage physique et Convoi restent NON validés ; la DLL expérimentale n'est pas installée automatiquement.
+          - Cette édition nécessite Microsoft Edge WebView2 Runtime pour héberger l'interface HTML à l'intérieur d'une seule fenêtre Windows. Le journal de démarrage se trouve dans %LOCALAPPDATA%/EssieuPilot/diagnostics/original-ui-startup.log.
+          - Compilation et tests automatisés Windows réussis. Doit encore être testé sur le PC de l'utilisateur.
+          '@
+          gh release create $tag release/Installer_EssieuPilot.exe release/EssieuPilot_Interface_Originale_ZIP.zip --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title 'EssieuPilot — essai interface officielle originale conservée' --prerelease --notes $notes
+          if($LASTEXITCODE -ne 0){throw 'Publication failed'}
+          gh release view $tag --repo $env:GITHUB_REPOSITORY
