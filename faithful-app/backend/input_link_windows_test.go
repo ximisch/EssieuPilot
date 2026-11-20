@@ -101,3 +101,30 @@ func TestDirectionOnlyAuthorizedWhenManualModeArmedAndATSForeground(t *testing.T
         })
     }
 }
+
+func TestHeldDirectionKeepsOneContinuousHoldWithoutRepeatedPresses(t *testing.T) {
+    tests := []struct {
+        name string
+        authorized, left, right bool
+        want string
+    }{
+        {"inactive left", false, true, false, ""},
+        {"inactive right", false, false, true, ""},
+        {"authorized held left", true, true, false, "GAUCHE"},
+        {"authorized held right", true, false, true, "DROITE"},
+        {"released", true, false, false, ""},
+        {"opposing simultaneous buttons", true, true, true, ""},
+    }
+    for _, tt := range tests {
+        t.Run(tt.name, func(t *testing.T) {
+            if got := heldDirection(tt.authorized, tt.left, tt.right); got != tt.want {
+                t.Fatalf("heldDirection got %q, expected %q", got, tt.want)
+            }
+        })
+    }
+    for i := 0; i < 100; i++ {
+        if got := heldDirection(true, true, false); got != "GAUCHE" {
+            t.Fatal("continuous hold unexpectedly stopped")
+        }
+    }
+}
