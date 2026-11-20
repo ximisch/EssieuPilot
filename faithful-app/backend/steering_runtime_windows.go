@@ -306,6 +306,7 @@ func startSteeringRuntime(s *server) func() {
 		var lastModeRequest uint64
 		var gameRunning bool
 		var activationCount, leftCount, rightCount uint64
+		var allowedLeftCount, allowedRightCount uint64
 		var lastDirection string
 		var lastDirectionTime time.Time
 		var lastFocusTime time.Time
@@ -353,6 +354,7 @@ func startSteeringRuntime(s *server) func() {
 				lastDirection = ""
 				lastDirectionTime = time.Time{}
 				activationCount, leftCount, rightCount = 0, 0, 0
+				allowedLeftCount, allowedRightCount = 0, 0
 				history = nil
 			}
 			manual = retainManualOnFocusChange(manual, gameRunning)
@@ -419,8 +421,14 @@ func startSteeringRuntime(s *server) func() {
 				// from a disabled steering toggle.
 				if risingEdge(left, prevLeft) {
 					leftCount++
+					allowed := steeringInstructionAllowed(manual, gameRunning, foreground, found)
 					lastInput = "Gauche (" + active.LeftKey + ")"
-					if !manual {lastInput += " — pilotage désactivé"}
+					if allowed {
+						allowedLeftCount++
+						lastInput += " — commande autorisée (test)"
+					} else {
+						lastInput += " — touche détectée, commande bloquée (INACTIF)"
+					}
 					lastEventTime = now
 					lastDirection = lastInput
 					lastDirectionTime = now
@@ -428,8 +436,14 @@ func startSteeringRuntime(s *server) func() {
 				}
 				if risingEdge(right, prevRight) {
 					rightCount++
+					allowed := steeringInstructionAllowed(manual, gameRunning, foreground, found)
 					lastInput = "Droite (" + active.RightKey + ")"
-					if !manual {lastInput += " — pilotage désactivé"}
+					if allowed {
+						allowedRightCount++
+						lastInput += " — commande autorisée (test)"
+					} else {
+						lastInput += " — touche détectée, commande bloquée (INACTIF)"
+					}
 					lastEventTime = now
 					lastDirection = lastInput
 					lastDirectionTime = now
@@ -449,6 +463,7 @@ func startSteeringRuntime(s *server) func() {
 				snapshot.RightPressed = right && manual
 			}
 			snapshot.ManualArmed = manual
+			snapshot.SteeringInputAllowed = steeringInstructionAllowed(manual, gameRunning, foreground, found)
 			if !gameRunning {
 				snapshot.InputReason = "ATS n'est pas lancé"
 			} else if !found {
@@ -467,6 +482,8 @@ func startSteeringRuntime(s *server) func() {
 			snapshot.ActivationCount = activationCount
 			snapshot.LeftCount = leftCount
 			snapshot.RightCount = rightCount
+			snapshot.AllowedLeftCount = allowedLeftCount
+			snapshot.AllowedRightCount = allowedRightCount
 			snapshot.LastDirection = lastDirection
 			_, snapshot.LastDirectionTime = formatInputEvent(lastDirection, lastDirectionTime)
 			if !lastFocusTime.IsZero() {snapshot.LastFocusTime = lastFocusTime.Format(time.RFC3339)}
@@ -491,6 +508,14 @@ func startSteeringRuntime(s *server) func() {
 // inspect the prior state after Alt+Tab.
 func retainManualOnFocusChange(manual, gameRunning bool) bool {
 	return manual && gameRunning
+}
+
+// Steering direction is a command only when the user has explicitly armed
+// the mode, ATS is running AND foreground, and the saved profile is valid.
+// This gate also applies to future physical output; stage 1 still publishes
+// exclusively neutral packets to the prototype DLL.
+func steeringInstructionAllowed(armed, gameRunning, foreground, profileFound bool) bool {
+	return armed && gameRunning && foreground && profileFound
 }
 
 // risingEdge records one press per key-down transition. It does not
