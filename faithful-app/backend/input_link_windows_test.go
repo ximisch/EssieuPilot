@@ -43,3 +43,27 @@ func TestOnlySavedActiveProfileIsUsed(t *testing.T) {
 		t.Fatal("unknown active profile should not issue any control input")
 	}
 }
+
+func TestInputEdgesAreRecognizedWhenNotArmed(t *testing.T) {
+    // The diagnostic must record raw input even before manual steering is enabled.
+    if !risingEdge(true, false) {
+        t.Fatal("freshly pressed left/right key not detected")
+    }
+    if risingEdge(true, true) || risingEdge(false, true) {
+        t.Fatal("held or released key incorrectly counted as a new press")
+    }
+}
+
+func TestManualStateSurvivesReturningToDiagnostic(t *testing.T) {
+    // The previous release erased the armed state on every Alt+Tab and hid it
+    // when the user returned to EssieuPilot to examine the diagnostic.
+    if !retainManualOnFocusChange(true, true) {
+        t.Fatal("switching windows must not reset activation while ATS runs")
+    }
+    if retainManualOnFocusChange(true, false) {
+        t.Fatal("closing ATS must disarm manual control")
+    }
+    if retainManualOnFocusChange(false, true) {
+        t.Fatal("switching windows must not turn on disabled steering")
+    }
+}
