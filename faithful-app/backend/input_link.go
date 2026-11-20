@@ -19,6 +19,14 @@ type inputLinkSnapshot struct {
 	ProfileSaved           bool   `json:"profile_saved"`
 	ATSForeground          bool   `json:"ats_foreground"`
 	ManualArmed            bool   `json:"manual_armed"`
+	ATSRunning             bool   `json:"ats_running"`
+	ActivationCount        uint64 `json:"activation_count"`
+	LeftCount              uint64 `json:"left_count"`
+	RightCount             uint64 `json:"right_count"`
+	LastDirection          string `json:"last_direction"`
+	LastDirectionTime      string `json:"last_direction_time"`
+	LastFocusTime          string `json:"last_focus_time"`
+	InputHistory           []string `json:"input_history"`
 	LeftPressed            bool   `json:"left_pressed"`
 	RightPressed           bool   `json:"right_pressed"`
 	LastInput              string `json:"last_input"`
