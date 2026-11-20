@@ -97,11 +97,14 @@ func TestAppAndProtectedWrites(t *testing.T) {
 		if err := json.Unmarshal(rec.Body.Bytes(), &v); err != nil {
 			t.Fatal(err)
 		}
-		if v["available"] != false {
-			t.Fatal("Unverified update installer was enabled")
+		if v["feed_configured"] != true || v["version"] != technicalVersion {
+			t.Fatal("Expected configured, versioned verified GitHub test update channel")
 		}
 	}
-	if rec := check("POST", "/api/updates/install", s.token, nil); rec.Code != 409 {
-		t.Fatal("Unverified installer was allowed")
+	if rec := check("POST", "/api/updates/install", "invalid", nil); rec.Code != 403 {
+		t.Fatal("Untrusted update installation request was accepted")
+	}
+	if rec := check("GET", "/api/control-link", "", nil); rec.Code != 200 {
+		t.Fatal("Input controller local diagnostic was not available")
 	}
 }
