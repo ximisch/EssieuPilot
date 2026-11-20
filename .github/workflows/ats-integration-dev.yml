@@ -125,6 +125,7 @@ jobs:
           python integration/process_detection/apply_detection.py .
           if ($LASTEXITCODE -ne 0) { throw 'Intégration du statut ATS refusée' }
           Copy-Item integration/process_detection/process_detection_test.go backend/process_detection_test.go
+          Copy-Item integration/process_detection/process_detection_real_windows_test.go backend/process_detection_real_windows_test.go
           Push-Location backend
           try {
             gofmt -w main.go process_detection_test.go
