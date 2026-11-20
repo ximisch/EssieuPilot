@@ -69,6 +69,16 @@ jobs:
           Write-Host "Research binary compiled: size=$($dll.Length), sha256=$sha, path=$($dll.FullName)"
           $env:TS_EXTRA_RESEARCH_DLL=$dll.FullName
 
+      - name: Verify Windows physical bridge IPC contract without ATS
+        shell: pwsh
+        run: |
+          cmake -S integration/bridge/smoke -B bridge-smoke-build -G 'Visual Studio 17 2022' -A x64
+          if ($LASTEXITCODE -ne 0) {throw 'IPC smoke CMake configure failed'}
+          cmake --build bridge-smoke-build --config Release
+          if ($LASTEXITCODE -ne 0) {throw 'IPC smoke compilation failed'}
+          & 'bridge-smoke-build/Release/bridge_smoke.exe'
+          if ($LASTEXITCODE -ne 0) {throw 'IPC smoke validation failed'}
+
       - name: Archive a build report ONLY (not the executable DLL)
         shell: pwsh
         run: |
