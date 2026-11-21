@@ -183,14 +183,19 @@
             one('.sv-value',game).textContent=s.game_running?'En ligne':'Hors ligne';
             one('.sv-hint',game).textContent=s.game_running?'ATS détecté et lancé':'ATS fermé ou non détecté';
           }
-          active=s.game_running===true&&c.manual_armed===true&&
-            c.physical_control_enabled===true&&c.physical_callback_ack===true;
-          detail=active?'Commande signalée par la DLL ; mouvement réel non prouvé':
-            'Commande physique non confirmée';
+          // "Actifs" describes the configured toggle-key state only.
+          // Display callback and physical-wheel proof as SEPARATE facts.
+          active=s.game_running===true&&c.manual_armed===true;
+          const binding=String(c.toggle_binding||'touche configurée').replace(/^KEY:/,'');
+          detail=active?
+            (c.physical_control_enabled&&c.physical_callback_ack?
+              'Pilotage activé ('+binding+') · callback DLL reçu, roues non vérifiées':
+              'Pilotage activé ('+binding+') · braquage physique à vérifier'):
+            'Pilotage désactivé · touche : '+binding;
         }
       }catch(_e){detail='Connexion aux diagnostics indisponible';}
       axles.dataset.state=known?(active?'on':'off'):'unknown';
-      one('.sv-value',axles).textContent=known?(active?'Commande active':'Inactifs'):'État inconnu';
+      one('.sv-value',axles).textContent=known?(active?'Pilotage activé':'Essieux inactifs'):'État inconnu';
       one('.sv-hint',axles).textContent=detail;
       drawValues();
       refreshSketch();
