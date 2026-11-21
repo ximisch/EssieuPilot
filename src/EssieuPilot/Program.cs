@@ -32,7 +32,9 @@ internal sealed record UpdateCandidate(string Tag, string Url, string Sha256);
 
 public sealed class MainWindow : Form
 {
-#if TEST_VERSION_3
+#if TEST_VERSION_4
+    private const string TechnicalVersion = "1.7.0-test.4";
+#elif TEST_VERSION_3
     private const string TechnicalVersion = "1.7.0-test.3";
 #elif TEST_VERSION_2
     private const string TechnicalVersion = "1.7.0-test.2";
@@ -85,14 +87,14 @@ public sealed class MainWindow : Form
 
         var header = Box(0, 0, 1020, 91, Surface, this);
         header.Controls.Add(LabelAt("EssieuPilot", 26, 10, 570, 48, 28, Aqua, true));
-        header.Controls.Add(LabelAt("Configuration et simulation de remorques", 29, 56, 720, 26, 10, Muted));
-        header.Controls.Add(LabelAt("ÉDITION DE TEST", 833, 29, 180, 24, 11, Aqua, true));
+        header.Controls.Add(LabelAt("PILOTAGE DES ESSIEUX DIRECTEURS  •  AMERICAN TRUCK SIMULATOR", 29, 57, 748, 26, 9, Muted));
+        header.Controls.Add(LabelAt("● MODE TEST", 843, 29, 163, 24, 10, Aqua, true));
 
         var side = Box(0, 91, 220, 541, Surface, this);
         side.Controls.Add(ActionButton("Tableau de bord", 14, 22, 192, 45, ShowDashboard));
-        side.Controls.Add(ActionButton("Profils de remorques", 14, 81, 192, 45, ShowProfiles));
+        side.Controls.Add(ActionButton("Mes remorques", 14, 81, 192, 45, ShowProfiles));
         side.Controls.Add(ActionButton("Mises à jour", 14, 140, 192, 45, ShowUpdates));
-        side.Controls.Add(LabelAt("CONNEXION ATS", 15, 346, 190, 26, 9, Muted, true));
+        side.Controls.Add(LabelAt("ÉTAT DU JEU", 15, 346, 190, 26, 9, Muted, true));
         side.Controls.Add(LabelAt("● Hors ligne", 15, 374, 190, 28, 12, Color.Orange, true));
         side.Controls.Add(LabelAt("ESSIEUX DIRECTEURS", 15, 410, 190, 26, 9, Muted, true));
         side.Controls.Add(LabelAt("● Inactifs", 15, 438, 190, 28, 12, Color.Orange, true));
@@ -157,7 +159,8 @@ public sealed class MainWindow : Form
             Font = new Font("Segoe UI", 10, FontStyle.Bold),
             Cursor = Cursors.Hand
         };
-        b.FlatAppearance.BorderColor = Aqua;
+        b.FlatAppearance.BorderColor = primary ? Aqua : Color.FromArgb(53, 83, 103);
+        b.FlatAppearance.BorderSize = 1;
         b.Click += (_, _) => click();
         return b;
     }
@@ -248,7 +251,7 @@ public sealed class MainWindow : Form
 
     private void ShowProfiles()
     {
-        ResetPage("Profils de remorques", "Chaque profil possède ses propres paramètres et reste enregistré après une mise à jour.");
+        ResetPage("Mes remorques", "Créer, modifier et supprimer les profils de remorques.");
         var card = Box(13, 99, 722, 382, Surface, _body);
         var listing = new ListBox
         {
