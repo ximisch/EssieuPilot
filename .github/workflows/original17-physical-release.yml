@@ -170,6 +170,17 @@ jobs:
             if($web.StatusCode -ne 200 -or -not $web.Content.Contains('modern.css') -or -not $web.Content.Contains('original-live.js') -or -not $web.Content.Contains('original17.css') -or -not $web.Content.Contains('original16-ui.js')){
               throw 'Original interface HTML not served correctly'
             }
+            # Capture REAL rendered dashboard on the Windows host for visual QA.
+            $edge=Join-Path ([Environment]::GetFolderPath('ProgramFilesX86')) 'Microsoft\Edge\Application\msedge.exe'
+            if(-not (Test-Path $edge)){$edge=Join-Path $env:ProgramFiles 'Microsoft\Edge\Application\msedge.exe'}
+            if(Test-Path $edge){
+              $preview=Join-Path $env:GITHUB_WORKSPACE 'out\original17_dashboard.png'
+              $profile=Join-Path $env:RUNNER_TEMP 'Original17-EdgeSmoke'
+              & $edge '--headless=new' '--disable-gpu' '--no-first-run' '--hide-scrollbars' "--user-data-dir=$profile" '--window-size=1366,900' "--screenshot=$preview" $ready 2>&1|Out-Null
+              if(Test-Path $preview){
+                Write-Host "Original.17 dashboard visual preview: $preview"
+              }else{Write-Warning 'Edge screenshot unavailable; structural UI test still required'}
+            }else{Write-Warning 'Edge not installed in runner; no graphical preview'}
             $art=Invoke-WebRequest -Uri ($ready+'ep17_reference_hero.webp') -UseBasicParsing
             $skin=Invoke-WebRequest -Uri ($ready+'original17.css') -UseBasicParsing
             if($art.StatusCode -ne 200 -or $art.Headers['Content-Type'] -notlike '*image/webp*' -or $skin.StatusCode -ne 200){
@@ -220,6 +231,14 @@ jobs:
           } finally {
             if(-not $p.HasExited){Stop-Process -Id $p.Id -Force}
           }
+
+      - name: Upload Windows-rendered Original.17 dashboard preview
+        uses: actions/upload-artifact@v4
+        with:
+          name: EssieuPilot-Original17-Dashboard-Preview
+          path: out/original17_dashboard.png
+          if-no-files-found: warn
+          retention-days: 14
 
       - name: Test transactional DLL and SCS installer without the real game
         shell: pwsh
