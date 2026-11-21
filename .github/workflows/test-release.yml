@@ -2,16 +2,37 @@ name: Créer les versions de test EssieuPilot (Windows)
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - cargo-pulse-approved
+  pull_request:
+    branches:
+      - main
 
 permissions:
   contents: write
 
 jobs:
+  compile-check:
+    if: github.event_name == 'pull_request'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Vérifier la compilation de l'interface
+        run: dotnet build src/EssieuPilot/EssieuPilot.csproj --configuration Release -p:BuildNumber=5
+
   build-and-release:
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    needs: compile-check
     runs-on: windows-latest
     steps:
       - name: Récupérer le code source
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Installer .NET 8
         uses: actions/setup-dotnet@v4
@@ -27,7 +48,7 @@ jobs:
           $iscc = Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'
           if (-not (Test-Path $iscc)) { throw "ISCC.exe introuvable : $iscc" }
 
-      - name: Compiler et publier la troisième version de test
+      - name: Compiler et publier la sixième version de test
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
@@ -35,7 +56,7 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $repo = '${{ github.repository }}'
           $iscc = Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'
-          foreach ($build in @(3)) {
+          foreach ($build in @(6)) {
             $tag = "v1.7.0-test.$build"
             $publishDir = Join-Path $env:GITHUB_WORKSPACE "build\test$build"
             $outputDir = Join-Path $env:GITHUB_WORKSPACE "output\test$build"
@@ -62,7 +83,7 @@ jobs:
               if ($LASTEXITCODE -ne 0) { throw "Mise à jour GitHub Release échouée" }
             }
             else {
-              gh release create "$tag" "$installer" --repo $repo --title "EssieuPilot - test de mise à jour $build" --prerelease --notes "Édition de test indépendante de la version 1.6.1. Code source public. Le bouton Mises à jour permet de passer de test.2 à test.3 et de vérifier la conservation des profils ; simulation sans commandes physiques ATS ni Convoi. Pas de signature numérique."
+              gh release create "$tag" "$installer" --target "${{ github.event.pull_request.head.sha }}" --repo $repo --title "EssieuPilot - test de mise à jour $build" --prerelease --notes "Édition de test indépendante de la version 1.6.1. Code source public. Habillage EssieuPilot : sept onglets, profils remorque et suppression confirmée, menu Mises à jour, diagnostics explicitement non connectés à ATS ; simulation sans commandes physiques ATS ni Convoi. Pas de signature numérique."
               if ($LASTEXITCODE -ne 0) { throw "Création GitHub Release échouée pour $tag" }
             }
           }
