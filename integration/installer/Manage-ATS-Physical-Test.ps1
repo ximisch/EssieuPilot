@@ -146,7 +146,10 @@ try{
    New-Item -ItemType Directory -Path (Split-Path $ConsentPath -Parent) -Force|Out-Null
    Set-Content -LiteralPath $ConsentPath -Value 'I_ACCEPT_CRASH_RISK' -Encoding ASCII
   }elseif(Test-Path -LiteralPath $ConsentPath){Remove-Item -LiteralPath $ConsentPath -Force}
-  Write-Host "PASS : DLL installée et vérifiée. Essai physique activé : $AllowPhysicalTest"
+  $previousError=Join-Path $StateDir 'dernier-echec-installation.txt'
+  if(Test-Path -LiteralPath $previousError){Remove-Item -LiteralPath $previousError -Force}
+  Write-Host "PASS : DLL installée, empreinte vérifiée, destination : $target"
+  Write-Host "Essai physique activé (solo seulement) : $AllowPhysicalTest"
  }catch{
   if($had){Copy-Item -LiteralPath (Join-Path $backup $name) -Destination $target -Force}
   elseif(Test-Path -LiteralPath $target){Remove-Item -LiteralPath $target -Force}
