@@ -191,6 +191,13 @@ type runtimeAxle struct {
 type runtimeTrailer struct {
 	ID    string        `json:"id"`
 	Axles []runtimeAxle `json:"axles"`
+	// When set, bind this saved configuration to the exact ATS trailer
+	// telemetry identifier. Never rely on preset index or the UI name.
+	ATSMatchKey string `json:"ats_match_key"`
+	// Number of requested (nominal) degrees corresponding to an ATS
+	// normalized command of 1.0. Default 60; calibrate on an observed
+	// trailer, NOT an assertion about physical wheel angles.
+	PhysicalFullScaleDegrees float64 `json:"physical_full_scale_degrees"`
 }
 type runtimeProfile struct {
 	Name             string           `json:"name"`
@@ -247,6 +254,32 @@ func selectedPhysicalTrailer(p runtimeProfile) (runtimeTrailer, bool) {
         if t.ID==p.PhysicalSelectedTrailerID {return t,true}
     }
     return runtimeTrailer{},false
+}
+
+// Resolve the attached trailer ONLY by a unique exact saved ATS identity.
+// Unmatched / duplicated explicit mappings fail closed (never use an old
+// selection from another trailer). Old unbound profiles retain their manual
+// Original.13 selection until a user creates an explicit association.
+func selectedPhysicalTrailerForATS(p runtimeProfile, detectedID string) (runtimeTrailer,string,bool) {
+    id:=strings.TrimSpace(detectedID)
+    if id=="" {return runtimeTrailer{},"TELEMETRIE_REMORQUE_SANS_IDENTIFIANT",false}
+    var exact runtimeTrailer
+    matches:=0
+    hasLinks:=false
+    for _,t:=range p.Trailers {
+        if strings.TrimSpace(t.ATSMatchKey)==""{continue}
+        hasLinks=true
+        if strings.EqualFold(strings.TrimSpace(t.ATSMatchKey),id) {
+            exact=t
+            matches++
+        }
+    }
+    if matches>1{return runtimeTrailer{},"IDENTIFIANT_REMORQUE_AMBIGU",false}
+    if matches==1{return exact,"ASSOCIATION_AUTOMATIQUE_EXACTE",true}
+    if hasLinks{return runtimeTrailer{},"REMORQUE_INCONNUE_ASSOCIATION_REQUISE",false}
+    legacy,ok:=selectedPhysicalTrailer(p)
+    if !ok{return runtimeTrailer{},"CONFIG_REMORQUE_A_SELECTIONNER",false}
+    return legacy,"SELECTION_MANUELLE_NON_ASSOCIEE",true
 }
 
 // The game bridge is per trailer; reject conflicting per-axle directions,
@@ -383,6 +416,7 @@ func startSteeringRuntime(s *server) func() {
 		var plannedAngle float64
 		var plannedAvailable bool
 		var lastPlanTick time.Time
+		var physicalSelectionSignature string
 		var profiles runtimeProfiles
 		var lastProfileRead time.Time
 		var lastInput string
@@ -589,9 +623,21 @@ func startSteeringRuntime(s *server) func() {
 				}
 				snapshot.LeftPressed = command.Direction == "GAUCHE"
 				snapshot.RightPressed = command.Direction == "DROITE"
-				selectedPreview, selectedForPreview := selectedPhysicalTrailer(active)
+				detectedPreviewID:=""
+				if observedTelemetry.Connected && !observedTelemetry.Paused &&
+					now.Sub(lastTelemetryAt)<750*time.Millisecond &&
+					len(observedTelemetry.Trailers)==1 {
+					detectedPreviewID=observedTelemetry.Trailers[0].ID
+				}
+				selectedPreview, previewMode, selectedForPreview := selectedPhysicalTrailerForATS(active,detectedPreviewID)
+				selectionSignature:=active.ID+"|"+detectedPreviewID+"|"+selectedPreview.ID
+				if selectionSignature!=physicalSelectionSignature {
+					physicalSelectionSignature=selectionSignature
+					plannedAngle=0
+					plannedAvailable=false
+				}
 				if !selectedForPreview {
-					snapshot.PlannedAngleReason = "Sélectionne la configuration de la remorque attelée dans Diagnostic (Original.13)."
+					snapshot.PlannedAngleReason = "Association remorque : "+previewMode+" (Diagnostic → choisir une configuration)."
 				} else if axle, compatible := trailerCompatible(selectedPreview); compatible {
 					speedValid := observedTelemetry.Connected && !observedTelemetry.Paused &&
 						now.Sub(lastTelemetryAt) < time.Second
@@ -668,7 +714,12 @@ func startSteeringRuntime(s *server) func() {
 			profileMatched := oneTrailer &&
 				(active.MatchKey == "" || strings.EqualFold(active.MatchKey, observedTelemetry.Trailers[0].ID))
 			var physicalAxle runtimeAxle
-			physicalTrailer, selected := selectedPhysicalTrailer(active)
+			detectedID:=""
+			if oneTrailer { detectedID=observedTelemetry.Trailers[0].ID }
+			physicalTrailer, associationMode, selected := selectedPhysicalTrailerForATS(active,detectedID)
+			snapshot.PhysicalSelectedTrailerID=physicalTrailer.ID
+			snapshot.PhysicalDetectedTrailerID=detectedID
+			snapshot.PhysicalSelectionReason=associationMode
 			axlesCompatible := selected
 			if axlesCompatible {
 				physicalAxle, axlesCompatible = trailerCompatible(physicalTrailer)
@@ -684,15 +735,16 @@ func startSteeringRuntime(s *server) func() {
 			}
 			allowed := allowExperimentalPhysics(conditions)
 			reasons := physicalGateReasons(conditions,bridge != nil,snapshot.PlannedAngleValid)
-			if !selected {reasons=append(reasons,"CONFIG_REMORQUE_A_SELECTIONNER")}
+			if !selected {reasons=append(reasons,associationMode)}
 			if selected && !axlesCompatible {reasons=append(reasons,"ESSIEUX_AVEC_ANGLES_SENS_OU_RATIOS_DIFFERENTS")}
 			if bridge != nil && allowed && snapshot.PlannedAngleValid {
-				if normalized, ok := normalizedPhysicalAngle(plannedAngle, physicalAxle.MaxAngle); ok {
+				if normalized, ok := normalizedPhysicalAngle(plannedAngle, physicalAxle.MaxAngle, physicalTrailer.PhysicalFullScaleDegrees); ok {
 					if err := bridge.publish(true, 0, normalized); err == nil {
 						emitted = true
 						snapshot.PhysicalPacketSent = true
 						snapshot.PhysicalPacketNormalized = float64(normalized)
 						snapshot.PhysicalControlEnabled = true // IPC request, NOT wheel proof.
+					snapshot.PhysicalCalibrationReferenceDegrees=physicalReferenceDegrees(physicalTrailer.PhysicalFullScaleDegrees)
 						ack := readPhysicalAck()
 						snapshot.PhysicalCallbackAck = ack.Received && ack.TrailerIndex == 0
 						if snapshot.PhysicalCallbackAck {
