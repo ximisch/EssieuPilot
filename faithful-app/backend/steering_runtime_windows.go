@@ -711,12 +711,15 @@ func startSteeringRuntime(s *server) func() {
 			speedAndTrailerValid := observedTelemetry.Connected && !observedTelemetry.Paused &&
 				now.Sub(lastTelemetryAt) < 750*time.Millisecond
 			oneTrailer := speedAndTrailerValid && len(observedTelemetry.Trailers) == 1
-			profileMatched := oneTrailer &&
-				(active.MatchKey == "" || strings.EqualFold(active.MatchKey, observedTelemetry.Trailers[0].ID))
 			var physicalAxle runtimeAxle
 			detectedID:=""
 			if oneTrailer { detectedID=observedTelemetry.Trailers[0].ID }
 			physicalTrailer, associationMode, selected := selectedPhysicalTrailerForATS(active,detectedID)
+			// The explicit per-preset ATS binding is more specific than a legacy
+			// profile-level match_key. A profile can now store arbitrary trailers.
+			profileMatched := oneTrailer && (
+				associationMode=="ASSOCIATION_AUTOMATIQUE_EXACTE" ||
+				active.MatchKey=="" || strings.EqualFold(active.MatchKey,detectedID))
 			snapshot.PhysicalSelectedTrailerID=physicalTrailer.ID
 			snapshot.PhysicalDetectedTrailerID=detectedID
 			snapshot.PhysicalSelectionReason=associationMode
