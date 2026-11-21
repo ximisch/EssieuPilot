@@ -99,13 +99,23 @@ jobs:
               if(-not(Test-Path $target)){throw "Screenshot not created: $slug"}
               if((Get-Item $target).Length -lt 20000){throw "Screenshot empty: $slug"}
             }
-            Write-Host 'PASS: actual UI screenshots captured at three sizes'
+            foreach($page in @('trailers','inputs','viewer','diagnostics','updates','about')){
+              $target=Join-Path $env:GITHUB_WORKSPACE ('out/steel-vector-page-'+$page+'.png')
+              $profile=Join-Path $env:RUNNER_TEMP ('ep-steel-page-'+$page)
+              & $edge '--headless=new' '--disable-gpu' '--no-first-run' '--hide-scrollbars' '--virtual-time-budget=2000' "--user-data-dir=$profile" '--window-size=1920,1080' "--screenshot=$target" ($url+'?sv-preview='+$page) 2>&1|Out-Null
+              if(-not(Test-Path $target)){throw "Missing $page page screenshot"}
+              if((Get-Item $target).Length -lt 20000){throw "Blank $page page screenshot"}
+            }
+            $asset=Invoke-WebRequest -Uri ($url+'steel-vector-hero.webp') -UseBasicParsing
+            if($asset.Headers['Content-Type'] -notlike '*image/webp*' -or $asset.RawContentLength -lt 100000){throw 'High resolution panoramic asset missing'}
+            Write-Host 'PASS: seven real pages and dashboard at three screen sizes captured'
           } finally {
             if(-not $p.HasExited){Stop-Process -Id $p.Id -Force}
           }
       - uses: actions/upload-artifact@v4
         with:
           name: EssieuPilot-Steel-Vector-Windows-Screenshots
-          path: out/steel-vector-*.png
+          path: |
+            out/steel-vector-*.png
           retention-days: 14
           if-no-files-found: error
