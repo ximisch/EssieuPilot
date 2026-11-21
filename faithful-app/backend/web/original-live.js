@@ -176,6 +176,12 @@
         const speed = c.observed_speed_valid ?
           'Vitesse ATS mesurée : ' + Number(c.observed_speed_kmh || 0).toFixed(1) + ' km/h' :
           'Vitesse ATS indisponible (pas de recentrage calculé)';
+        const actualWheels = c.observed_wheel_steering_valid &&
+          Array.isArray(c.observed_wheel_steering_degrees) ?
+          'ANGLES MESURÉS PAR ATS (roues de remorque) : ' +
+          c.observed_wheel_steering_degrees.slice(0,20).map(n=>Number(n).toFixed(1)+'°').join(' / ') +
+          ' · lecture SDK, pas preuve visuelle' :
+          'ANGLES MESURÉS PAR ATS : données de direction des roues indisponibles';
         const lastAccepted = c.last_authorized_command ?
           c.last_authorized_command + (c.last_authorized_time ?
             ' à ' + c.last_authorized_time.slice(11,19) : '') :
@@ -194,7 +200,7 @@
           '\nDirection actuelle : ' + held +
           '\n' + analog +
           '\nDernière commande autorisée : ' + lastAccepted +
-          '\n' + plan + '\n' + speed + '\n' + dllProbe + '\n' + experimental + '\n' + physical +
+          '\n' + plan + '\n' + speed + '\n' + actualWheels + '\n' + dllProbe + '\n' + experimental + '\n' + physical +
           '\nAppuis bruts détectés (y compris INACTIF, diagnostic seul) : ' + counts +
           '\n' + last + '\nHistorique : ' + recent +
           '\nATTENTION : mode R&D, usage expérimental non validé : un ACK indique seulement un appel DLL, jamais la preuve du mouvement des roues.' +
