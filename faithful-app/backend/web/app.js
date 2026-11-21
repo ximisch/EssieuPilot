@@ -221,6 +221,20 @@ function performAction(action){
   if(action==='toggle-manual'){manual=!manual;renderControl();return;}
   if(action==='center'){if(mode==='stop')return toast('Recentrage indisponible à l’arrêt. Passe en marche avant ou arrière.',true);centerAll();return;}
   if(action==='reset-sim'){resetSim();return;}
+  if(action==='delete-profile'){
+    if(data.profiles.length<=1)return toast('Le dernier profil ne peut pas être supprimé.',true);
+    const doomed=getProfile();
+    if(!doomed)return;
+    if(!window.confirm('Supprimer définitivement le profil « '+doomed.name+' » et toutes ses remorques ? Cette action ne peut pas être annulée.\n\nConseil : exporter les profils avant la suppression.'))return;
+    const previous=deepCopy(data),previousTrailer=selectedTrailerId,previousAxle=selectedAxleId;
+    data.profiles=data.profiles.filter(profile=>profile.id!==doomed.id);
+    data.active_id=data.profiles[0].id;
+    selectedTrailerId=null;selectedAxleId=null;manual=false;resetSim();markDirty();renderAll();
+    // Commit immediately; restore the selected profile if persistence fails.
+    save().then(()=>{if(dirty){data=previous;selectedTrailerId=previousTrailer;selectedAxleId=previousAxle;markDirty();renderAll();toast('La suppression n’a pas été enregistrée : profil restauré.',true);}})
+      .catch(()=>{data=previous;selectedTrailerId=previousTrailer;selectedAxleId=previousAxle;markDirty();renderAll();toast('Sauvegarde impossible : profil restauré.',true);});
+    return;
+  }
   if(action==='add-profile'){
     if(data.profiles.length>=100)return toast('Maximum de 100 profils.',true);
     const name=prompt('Nom du nouveau profil :',`Profil ${data.profiles.length+1}`)?.trim();if(!name)return;
