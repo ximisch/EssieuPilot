@@ -15,6 +15,15 @@
 
 namespace ep_ats162
 {
+  // Static disassembly of the exact ATS 1.62.2.2 EXE confirms that the
+  // historical TS Extra layout is stale. The values below are CANDIDATES,
+  // not validated engine ABI. Never turn on native memory writes using them.
+  inline constexpr bool ABI_VALIDATED_FOR_WRITES = false;
+  constexpr std::size_t TRAILER_STEERING_ANGLE_OFFSET_CANDIDATE = 0x6B8;
+  constexpr std::size_t TRAILER_WHEEL_STEERING_DATA_OFFSET_CANDIDATE = 0x6C0;
+  constexpr std::size_t TRAILER_STEERING_VTABLE_SLOT_CANDIDATE = 78;
+  constexpr std::size_t HISTORICAL_WRONG_STEERING_VTABLE_SLOT = 73;
+
   constexpr std::uint64_t EXPECTED_SIZE = 53640592ULL;
   constexpr std::size_t STEERING_SIGNATURE_FILE_OFFSET = 0x84CD40;
   constexpr std::array<std::uint8_t, 32> EXPECTED_SHA256 = {
