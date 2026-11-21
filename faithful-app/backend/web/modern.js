@@ -157,7 +157,8 @@
   }
   nav.addEventListener('click',e=>{const btn=e.target.closest('[data-modern-tab]');if(btn)selectTab(btn.dataset.modernTab);});
   document.addEventListener('click',e=>{const btn=e.target.closest('[data-modern-go]');if(btn)selectTab(btn.dataset.modernGo);});
-  pages.trailers.addEventListener('click',e=>{if(e.target.closest('[data-axle]'))selectTab('axles');});
+  // Original.16: clicking an axle edits it in place inside Mes remorques.
+  // app.js document delegation still selects the individual axle.
   document.getElementById('matchKey').addEventListener('change',e=>{if(typeof getProfile!=='function'||!getProfile())return;getProfile().match_key=e.target.value.trim();markDirty();});
   // Un rendu est déclenché après chaque changement de profil ou de sélection.
   const origRenderAll=renderAll;
