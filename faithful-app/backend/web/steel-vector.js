@@ -178,6 +178,11 @@
         if(sr.ok&&cr.ok){
           const [s,c]=await Promise.all([sr.json(),cr.json()]);
           known=true;
+          if(typeof s.game_running==='boolean'){
+            game.dataset.state=s.game_running?'on':'off';
+            one('.sv-value',game).textContent=s.game_running?'En ligne':'Hors ligne';
+            one('.sv-hint',game).textContent=s.game_running?'ATS détecté et lancé':'ATS fermé ou non détecté';
+          }
           active=s.game_running===true&&c.manual_armed===true&&
             c.physical_control_enabled===true&&c.physical_callback_ack===true;
           detail=active?'Commande signalée par la DLL ; mouvement réel non prouvé':
