@@ -1,0 +1,71 @@
+name: EssieuPilot R&D — native physical bridge gated to exact ATS build (NO RELEASE)
+
+on:
+  push:
+    branches: ['research/ats162-physical-abi']
+    paths:
+      - 'integration/bridge/**'
+      - '.github/workflows/ats162-native-safety.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  native-rnd:
+    runs-on: windows-2022
+    timeout-minutes: 35
+    steps:
+      - name: Checkout EssieuPilot R&D sources
+        uses: actions/checkout@v4
+      - name: Checkout exact upstream TS Extra source
+        uses: actions/checkout@v4
+        with:
+          repository: dariowouters/ts-extra-utilities
+          ref: 41b307496960732571de8e43100adba75cd115a1
+          path: upstream-ts-extra
+          submodules: recursive
+          persist-credentials: false
+      - name: Ensure pinned upstream and patch read-only fingerprint preflight
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          if ((git -C upstream-ts-extra rev-parse HEAD).Trim() -ne '41b307496960732571de8e43100adba75cd115a1') {throw 'Unexpected upstream commit'}
+          python integration/bridge/patch_upstream.py upstream-ts-extra
+          if($LASTEXITCODE -ne 0) {throw 'Native source patch failed'}
+          $native=Get-Content -Raw upstream-ts-extra/src/main.cpp
+          if (-not $native.Contains('ep_ats162::exactKnownBuild()') -or
+              -not $native.Contains('SCS_GET_MINOR_VERSION')) {
+            throw 'Native version fingerprint safety gate absent'
+          }
+          $patchedSteering=Get-Content -Raw upstream-ts-extra/src/windows/trailer_manipulation.cpp
+          if(-not $patchedSteering.Contains('if (!ep_ats162::ABI_VALIDATED_FOR_WRITES) return;')) {
+            throw 'Unsafe steering hook not blocked until real game structural validation'
+          }
+          $header=Get-Content -Raw upstream-ts-extra/src/ATS162ExactBuildGate.hpp
+          foreach($needle in @('EXPECTED_SHA256','EXPECTED_SIZE','STEERING_SIGNATURE_FILE_OFFSET','BCryptHashData')) {
+            if(-not $header.Contains($needle)){throw "Missing fingerprint criterion: $needle"}
+          }
+          Write-Host 'PASS: Exact ATS 1.62.2.2 SHA-256 and signature check before ANY R&D initialization'
+      - name: Compile native probe R&D (do not publish DLL)
+        shell: pwsh
+        run: |
+          cmake -S upstream-ts-extra -B upstream-build -G 'Visual Studio 17 2022' -A x64
+          if($LASTEXITCODE -ne 0){throw 'CMake configure failed'}
+          cmake --build upstream-build --config Release --parallel 2
+          if($LASTEXITCODE -ne 0){throw 'Native C++ build failed'}
+          $dll=Get-ChildItem upstream-build -Recurse -File -Filter ts-extra-utilities.dll | Select-Object -First 1
+          if(-not $dll){throw 'Research DLL compilation produced no file'}
+          Write-Host "PRIVATE R&D DLL compiled; NOT published. SHA256=$((Get-FileHash $dll.FullName -Algorithm SHA256).Hash)"
+      - name: Test native IPC and exact game fingerprint gate, without ATS
+        shell: pwsh
+        run: |
+          cmake -S integration/bridge/smoke -B smoke-build -G 'Visual Studio 17 2022' -A x64
+          if($LASTEXITCODE -ne 0){throw 'Smoke configure failed'}
+          cmake --build smoke-build --config Release
+          if($LASTEXITCODE -ne 0){throw 'Smoke compile failed'}
+          & 'smoke-build/Release/bridge_smoke.exe'
+          if($LASTEXITCODE -ne 0){throw 'IPC smoke test failed'}
+          & 'smoke-build/Release/ats_exact_gate_test.exe'
+          if($LASTEXITCODE -ne 0){throw 'Fingerprint gate failed its fail-closed tests'}
+          Write-Host 'PASS: No real ATS process, no hooks, no DLL distribution.'

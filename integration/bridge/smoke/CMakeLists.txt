@@ -3,3 +3,8 @@ project(EssieuPilotBridgeSmoke LANGUAGES CXX)
 add_executable(bridge_smoke ../bridge_smoke.cpp)
 target_compile_features(bridge_smoke PRIVATE cxx_std_17)
 target_include_directories(bridge_smoke PRIVATE ..)
+
+add_executable(ats_exact_gate_test ats_exact_build_gate.cpp)
+target_compile_features(ats_exact_gate_test PRIVATE cxx_std_17)
+target_include_directories(ats_exact_gate_test PRIVATE ..)
+target_link_libraries(ats_exact_gate_test PRIVATE bcrypt)
