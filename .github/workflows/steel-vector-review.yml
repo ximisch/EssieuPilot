@@ -82,7 +82,7 @@ jobs:
               if($p.HasExited){throw 'Backend stopped'}
             }
             if(-not $url){throw 'Backend did not start'}
-            foreach($asset in @('steel-vector.css','steel-vector.js','modern.js','original-live.js','hero_reference.jpg')){
+            foreach($asset in @('steel-vector.css','steel-vector.js','modern.js','original-live.js','hero_reference.jpg','steel-vector-hero.webp')){
               $response=Invoke-WebRequest -Uri ($url+$asset) -UseBasicParsing
               if($response.StatusCode -ne 200){throw "Missing $asset"}
             }
