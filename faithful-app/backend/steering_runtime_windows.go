@@ -124,7 +124,21 @@ func codeToVK(binding string) uint16 {
 			return 0x70 + uint16(x) - 1
 		}
 	}
-	return map[string]uint16{"Space": 0x20, "ArrowLeft": 0x25, "ArrowUp": 0x26, "ArrowRight": 0x27, "ArrowDown": 0x28, "Enter": 0x0D, "Escape": 0x1B, "ShiftLeft": 0xA0, "ShiftRight": 0xA1, "ControlLeft": 0xA2, "ControlRight": 0xA3, "AltLeft": 0xA4, "AltRight": 0xA5, "Insert": 0x2D, "Delete": 0x2E}[code]
+	return map[string]uint16{
+		"Space": 0x20, "Tab": 0x09, "Backspace": 0x08, "Enter": 0x0D, "NumpadEnter": 0x0D,
+		"Escape": 0x1B, "CapsLock": 0x14, "Pause": 0x13, "NumLock": 0x90,
+		"ScrollLock": 0x91, "PrintScreen": 0x2C,
+		"ArrowLeft": 0x25, "ArrowUp": 0x26, "ArrowRight": 0x27, "ArrowDown": 0x28,
+		"PageUp": 0x21, "PageDown": 0x22, "End": 0x23, "Home": 0x24,
+		"Insert": 0x2D, "Delete": 0x2E,
+		"ShiftLeft": 0xA0, "ShiftRight": 0xA1, "ControlLeft": 0xA2,
+		"ControlRight": 0xA3, "AltLeft": 0xA4, "AltRight": 0xA5,
+		"NumpadAdd": 0x6B, "NumpadSubtract": 0x6D,
+		"NumpadMultiply": 0x6A, "NumpadDivide": 0x6F, "NumpadDecimal": 0x6E,
+		"Semicolon": 0xBA, "Equal": 0xBB, "Comma": 0xBC, "Minus": 0xBD,
+		"Period": 0xBE, "Slash": 0xBF, "Backquote": 0xC0,
+		"BracketLeft": 0xDB, "Backslash": 0xDC, "BracketRight": 0xDD, "Quote": 0xDE,
+	}[code]
 }
 func deviceBindingDown(binding string, devices []device) bool {
 	if strings.HasPrefix(binding, "KEY:") {
