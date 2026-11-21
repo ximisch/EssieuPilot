@@ -51,6 +51,10 @@ type physicalDiagnosticReport struct {
  LastGameStopped string `json:"last_game_stopped,omitempty"`
  LastInGame *physicalDiagnosticFrame `json:"last_in_game,omitempty"`
  LastWithManualInput *physicalDiagnosticFrame `json:"last_with_manual_input,omitempty"`
+ // Original.20: keep both sides independent after Alt+Tab. A last-input
+ // sample alone loses evidence for the first direction tested.
+ LastWithLeftInput *physicalDiagnosticFrame `json:"last_with_left_input,omitempty"`
+ LastWithRightInput *physicalDiagnosticFrame `json:"last_with_right_input,omitempty"`
  SentCount int `json:"ipc_sent_samples"`
  ACKCount int `json:"callback_ack_samples"`
  Events []physicalDiagnosticFrame `json:"events"`
@@ -119,6 +123,8 @@ func (d *physicalDiagnosticRecorder) observe(now time.Time, snapshot inputLinkSn
   d.report.Events=nil
   d.report.LastInGame=nil
   d.report.LastWithManualInput=nil
+  d.report.LastWithLeftInput=nil
+  d.report.LastWithRightInput=nil
   d.report.SentCount=0
   d.report.ACKCount=0
   d.lastKey=""
@@ -165,6 +171,12 @@ func (d *physicalDiagnosticRecorder) observe(now time.Time, snapshot inputLinkSn
  d.report.LastInGame=&frame
  if snapshot.HeldDirection=="GAUCHE" || snapshot.HeldDirection=="DROITE" {
   d.report.LastWithManualInput=&frame
+ }
+ if snapshot.HeldDirection=="GAUCHE" {
+  d.report.LastWithLeftInput=&frame
+ }
+ if snapshot.HeldDirection=="DROITE" {
+  d.report.LastWithRightInput=&frame
  }
  // Prevent huge logs: capture state changes or one sample every 3s.
  key:=fmt.Sprintf("%s|%t|%s|%t|%t|%s",result,snapshot.ManualArmed,snapshot.HeldDirection,
