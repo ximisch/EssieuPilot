@@ -165,7 +165,7 @@ jobs:
             $diagResponse=Invoke-WebRequest -Uri ($ready+'api/physical-diagnostic') -SkipHttpErrorCheck -UseBasicParsing
             if($diagResponse.StatusCode -ne 404){throw 'Diagnostic endpoint must not invent an in-game test'}
             $up=Invoke-RestMethod -Uri ($ready+'api/updates')
-            if($up.version -ne '2.0.0-original.19' -or -not $up.feed_configured){
+            if($up.version -ne '2.0.0-original.20' -or -not $up.feed_configured){
               throw 'In-app update service not configured'
             }
             Write-Host 'PASS: Original HTML, /api/status, /api/control-link and /api/updates on Windows'
