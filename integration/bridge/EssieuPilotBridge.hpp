@@ -22,6 +22,41 @@ struct Packet {
 static_assert(sizeof(Packet)==36,"bridge ABI mismatch");
 struct Target { bool enabled; float angle; };
 
+// Original.8 diagnostics: a read-only proof that the ATS telemetry SDK
+// accepted this plugin and its reported game version. This does NOT claim
+// the physics hook is safe or that any wheel was moved.
+constexpr wchar_t PROBE_MAP_NAME[] = L"Local\\EssieuPilotProbeV8";
+constexpr uint32_t PROBE_MAGIC = 0x45505038; // EPP8
+constexpr uint32_t PROBE_VERSION = 8;
+#pragma pack(push,1)
+struct ProbePacket {
+  uint32_t magic, version, game_major, game_minor;
+  uint32_t sdk_accepted, reserved;
+  uint64_t tick_ms;
+};
+#pragma pack(pop)
+static_assert(sizeof(ProbePacket)==32, "ATS DLL probe ABI mismatch");
+
+inline bool announceSdkReady(uint32_t game_major,uint32_t game_minor) {
+  static HANDLE map = CreateFileMappingW(INVALID_HANDLE_VALUE, nullptr,
+      PAGE_READWRITE, 0, sizeof(ProbePacket), PROBE_MAP_NAME);
+  static auto* data = map ? static_cast<ProbePacket*>(
+      MapViewOfFile(map, FILE_MAP_WRITE, 0, 0, sizeof(ProbePacket))) : nullptr;
+  if (!data) return false;
+  // Construct a complete packet before making the magic visible.
+  data->magic = 0;
+  MemoryBarrier();
+  data->version = PROBE_VERSION;
+  data->game_major = game_major;
+  data->game_minor = game_minor;
+  data->sdk_accepted = 1;
+  data->reserved = 0;
+  data->tick_ms = GetTickCount64();
+  MemoryBarrier();
+  data->magic = PROBE_MAGIC;
+  return true;
+}
+
 constexpr wchar_t ACK_MAP_NAME[] = L"Local\\EssieuPilotAppliedV1";
 constexpr uint32_t ACK_MAGIC = 0x45504131;
 #pragma pack(push,1)
