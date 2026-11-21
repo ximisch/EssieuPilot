@@ -153,7 +153,7 @@ func TestProportionalAnalogJoystickRespectsProfile(t *testing.T) {
     if got<0.299 || got>0.301 {t.Fatalf("30%% stick should request 30%% angle, got %v",got)}
     p.AnalogInvert=true
     got=analogFromDevices(p,dev)
-    if got>-.299 || got<-.301 {t.Fatalf("inverted joystick should request -30%%, got %v",got)}
+    if got > -0.299 || got < -0.301 {t.Fatalf("inverted joystick should request -30%%, got %v",got)}
     p.AnalogInvert=false
     p.AnalogDeadzone=.4
     if got=analogFromDevices(p,dev);got!=0 {t.Fatalf("deadzone ignored: %v",got)}
