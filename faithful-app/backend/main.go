@@ -174,6 +174,8 @@ func newServer(p profileStore) (*server, error) {
 	router.HandleFunc("GET /", s.index)
 	router.HandleFunc("GET /styles.css", s.static)
 	router.HandleFunc("GET /modern.css", s.static)
+	router.HandleFunc("GET /steel-vector.css", s.static)
+	router.HandleFunc("GET /steel-vector.js", s.static)
 	router.HandleFunc("GET /app.js", s.static)
 	router.HandleFunc("GET /modern.js", s.static)
     router.HandleFunc("GET /original-live.js", s.static)
@@ -255,7 +257,7 @@ func (s *server) index(w http.ResponseWriter, r *http.Request) {
 	// The original front end remains intact; only the existing technical version
 	// footer is replaced and a status-poll script is appended.
 	html = strings.ReplaceAll(html, "Version technique 1.6.2", "Version technique "+technicalVersion)
-	html = strings.Replace(html, "</body>", `<script src="/original-live.js" defer></script></body>`, 1)
+	html = strings.Replace(html, "</body>", `<script src="/original-live.js" defer></script><script src="/steel-vector.js" defer></script></body>`, 1)
 	buf = []byte(html)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Write(buf)
