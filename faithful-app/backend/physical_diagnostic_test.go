@@ -57,7 +57,9 @@ func TestOriginal14PersistsLastFocusedGameResultAfterAltTabAndExit(t *testing.T)
  if got.LastWithManualInput==nil || got.LastWithManualInput.RequestedDirection!="DROITE" ||
   !got.LastWithManualInput.IPCSent || got.LastWithManualInput.CallbackACK ||
   got.LastGameStopped=="" || got.SentCount!=1 {t.Fatalf("lost original focused result: %+v",got)}
- if !strings.Contains(got.Warning,"ne prouvent jamais") {t.Fatal("missing physics uncertainty notice")}
+ if !strings.Contains(got.Warning,"non mesuree") || !strings.Contains(got.Warning,"NON disponible") {
+        t.Fatal("missing wheel calibration/independent axle uncertainty notice")
+    }
 }
 func TestOriginal14NeverReportsAckAsPhysicalSteering(t *testing.T) {
  d:=newPhysicalDiagnosticRecorderAt(filepath.Join(t.TempDir(),"report.json"))
