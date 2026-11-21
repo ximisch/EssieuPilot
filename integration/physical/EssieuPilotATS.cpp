@@ -29,8 +29,17 @@ constexpr std::uintptr_t kApplyWheelsRva = 0x84D940;
 constexpr std::uintptr_t kVirtualTableRvas[] = {
     0x22D5E88, 0x22F9F50, 0x23325D8
 };
-constexpr std::size_t kAngleOffset = 0x6B8;
-constexpr std::size_t kWheelDataPtrOffset = 0x6C0;
+// Two layouts remain CANDIDATES even on an exact 1.62.2.2 EXE.
+// TS Extra Utilities documents slot 73 and the vehicle_shared_u
+// steering/wheel_data fields 0x4E8/0x4F0; Original.12's candidate
+// used slot 78 and 0x6B8/0x6C0. Never write without a validated vtable
+// match AND accessible data/pointer checks.
+constexpr std::size_t kSourceSlot = 73;
+constexpr std::size_t kLegacySlot = 78;
+constexpr std::size_t kSourceAngleOffset = 0x4E8;
+constexpr std::size_t kSourceWheelPtrOffset = 0x4F0;
+constexpr std::size_t kLegacyAngleOffset = 0x6B8;
+constexpr std::size_t kLegacyWheelPtrOffset = 0x6C0;
 
 std::atomic<bool> g_paused{true};
 std::atomic<bool> g_possibleConvoy{false};
@@ -42,6 +51,12 @@ void* g_hookAddress = nullptr;
 std::uintptr_t g_imageBase = 0;
 scs_log_t g_log = nullptr;
 bool g_minhookInitialized = false;
+std::atomic<std::uint64_t> g_hookCallbacks{0};
+std::atomic<std::uint64_t> g_candidatesMatched{0};
+std::atomic<std::uint64_t> g_layoutRejected{0};
+std::atomic<std::uint64_t> g_wheelGuardRejected{0};
+std::atomic<std::uint64_t> g_applyCalls{0};
+std::atomic<std::uint64_t> g_eventFrames{0};
 
 void say(const scs_log_type_t type, const char* msg)
 {
@@ -68,37 +83,58 @@ bool isPageAccessible(const void* pointer, const std::size_t size, const bool wr
            mask == PAGE_WRITECOPY || mask == PAGE_EXECUTE_WRITECOPY;
 }
 
-bool candidateTrailerObject(void* ptr)
+struct CandidateLayout {
+    std::size_t angleOffset;
+    std::size_t wheelPtrOffset;
+};
+
+// Only explicitly recognized trailer vtables from this EXACT executable.
+// Never substitute a guess for an unknown vtable or blindly scan memory.
+bool candidateTrailerObject(void* ptr, CandidateLayout& out)
 {
-    if (!isPageAccessible(ptr, kWheelDataPtrOffset + sizeof(void*), false))
+    if (!isPageAccessible(ptr, kLegacyWheelPtrOffset + sizeof(void*), false))
         return false;
     const auto vtable = *static_cast<const std::uintptr_t*>(ptr);
-    bool exact = false;
-    for (std::uintptr_t known : kVirtualTableRvas)
-        if (vtable == g_imageBase + known) exact = true;
-    if (!exact) return false;
-    // Independent check: the selected virtual slot of the object MUST be
-    // exactly the steering_advance implementation found in the user EXE.
-    if (!isPageAccessible(reinterpret_cast<const void*>(vtable + 78 * 8),
-                          sizeof(std::uintptr_t), false)) return false;
-    return *reinterpret_cast<const std::uintptr_t*>(vtable + 78 * 8) ==
-        g_imageBase + kSteeringAdvanceRva;
+    bool known = false;
+    for (std::uintptr_t expected : kVirtualTableRvas)
+        if (vtable == g_imageBase + expected) known = true;
+    if (!known) return false;
+
+    const auto advance = g_imageBase + kSteeringAdvanceRva;
+    // TS Extra Utilities' independently documented slot 73 is checked
+    // before the older speculative slot 78. A slot must point to the exact
+    // same EXE function which MinHook intercepts.
+    if (isPageAccessible(reinterpret_cast<const void*>(vtable + kSourceSlot * 8),
+                         sizeof(std::uintptr_t), false) &&
+        *reinterpret_cast<const std::uintptr_t*>(vtable + kSourceSlot * 8) == advance)
+    {
+        out = {kSourceAngleOffset, kSourceWheelPtrOffset};
+        return true;
+    }
+    if (isPageAccessible(reinterpret_cast<const void*>(vtable + kLegacySlot * 8),
+                         sizeof(std::uintptr_t), false) &&
+        *reinterpret_cast<const std::uintptr_t*>(vtable + kLegacySlot * 8) == advance)
+    {
+        out = {kLegacyAngleOffset, kLegacyWheelPtrOffset};
+        return true;
+    }
+    return false;
 }
 
 // This is a **candidate** hook. The call signature, vtable dynamic type,
 // and group-of-axles semantics remain to be confirmed by a solo game test.
 std::uint64_t __fastcall steeringAdvance(void* self)
 {
-    // Always preserve the game's normal steering logic first. Never retain a
-    // previous command after IPC timeout, pause, deactivation or Convoi.
     const auto original = g_originalAdvance;
     if (!original) return 0;
+    g_hookCallbacks.fetch_add(1, std::memory_order_relaxed);
+    // Preserve the original ATS steering state before the experimental
+    // override. Never skip ATS physics or manipulate an unknown class.
     const std::uint64_t result = original(self);
     if (!g_hookEnabled.load(std::memory_order_relaxed) ||
         g_shuttingDown.load(std::memory_order_relaxed) ||
         g_paused.load(std::memory_order_relaxed) ||
-        g_possibleConvoy.load(std::memory_order_relaxed) ||
-        !candidateTrailerObject(self) || !g_applyWheels)
+        g_possibleConvoy.load(std::memory_order_relaxed) || !g_applyWheels)
         return result;
 
     epbridge::Target target{};
@@ -106,18 +142,41 @@ std::uint64_t __fastcall steeringAdvance(void* self)
         !std::isfinite(target.angle) ||
         std::fabs(target.angle) > 1.0f) return result;
 
+    CandidateLayout layout{};
+    if (!candidateTrailerObject(self, layout))
+    {
+        g_layoutRejected.fetch_add(1, std::memory_order_relaxed);
+        return result;
+    }
+    g_candidatesMatched.fetch_add(1, std::memory_order_relaxed);
     auto* raw = static_cast<unsigned char*>(self);
+    if (!isPageAccessible(raw + layout.wheelPtrOffset,sizeof(void*),false) ||
+        !isPageAccessible(raw + layout.angleOffset,sizeof(float),true))
+    {
+        g_wheelGuardRejected.fetch_add(1, std::memory_order_relaxed);
+        return result;
+    }
     void* wheelData = nullptr;
-    std::memcpy(&wheelData, raw + kWheelDataPtrOffset, sizeof(wheelData));
-    if (!isPageAccessible(wheelData, 0x170, false) ||
-        !isPageAccessible(raw + kAngleOffset, sizeof(float), true)) return result;
+    std::memcpy(&wheelData, raw + layout.wheelPtrOffset, sizeof(wheelData));
+    if (!isPageAccessible(wheelData, 0x60, false))
+    {
+        g_wheelGuardRejected.fetch_add(1, std::memory_order_relaxed);
+        return result;
+    }
+    // Stop on implausible current steering state instead of overwriting a
+    // field which might be something else on this exact game build.
+    float previous = 0;
+    std::memcpy(&previous,raw + layout.angleOffset,sizeof(previous));
+    if (!std::isfinite(previous) || std::fabs(previous)>1.01f)
+    {
+        g_wheelGuardRejected.fetch_add(1, std::memory_order_relaxed);
+        return result;
+    }
 
-    // The function discovered in ATS 1.62.2.2 accepts the steering-data
-    // pointer and a normalized float. The command can still be ignored
-    // by unsteerable axles or superseded by later game physics stages.
-    std::memcpy(raw + kAngleOffset, &target.angle, sizeof(target.angle));
+    std::memcpy(raw + layout.angleOffset, &target.angle, sizeof(target.angle));
     g_applyWheels(wheelData, target.angle);
-    epbridge::acknowledgeApplied(0); // Proof of callback only, NOT wheel motion.
+    g_applyCalls.fetch_add(1, std::memory_order_relaxed);
+    epbridge::acknowledgeApplied(0); // Callback only, not wheel proof.
     return result;
 }
 
@@ -129,9 +188,28 @@ void SCSAPIFUNC onFrame(const scs_event_t event, const void* const,
     if (event == SCS_TELEMETRY_EVENT_started)
         g_paused.store(false, std::memory_order_relaxed);
     if (event != SCS_TELEMETRY_EVENT_frame_end ||
-        g_hookEnabled.load(std::memory_order_relaxed) ||
-        g_shuttingDown.load(std::memory_order_relaxed) ||
-        g_paused.load(std::memory_order_relaxed) ||
+        g_shuttingDown.load(std::memory_order_relaxed)) return;
+
+    // Log counters from the official SDK callback, never from the unverified
+    // physics hook's possibly different engine thread. Every ~300 frames.
+    if (g_hookEnabled.load(std::memory_order_relaxed))
+    {
+        const auto frame = g_eventFrames.fetch_add(1, std::memory_order_relaxed);
+        if (frame == 300 || (frame > 300 && frame % 900 == 0))
+        {
+            char msg[240]{};
+            std::snprintf(msg,sizeof(msg),
+                "EssieuPilot R&D hook counts: calls=%llu candidates=%llu layout_reject=%llu memory_reject=%llu applied=%llu (NOT wheel proof)",
+                static_cast<unsigned long long>(g_hookCallbacks.load()),
+                static_cast<unsigned long long>(g_candidatesMatched.load()),
+                static_cast<unsigned long long>(g_layoutRejected.load()),
+                static_cast<unsigned long long>(g_wheelGuardRejected.load()),
+                static_cast<unsigned long long>(g_applyCalls.load()));
+            say(SCS_LOG_TYPE_message,msg);
+        }
+        return;
+    }
+    if (g_paused.load(std::memory_order_relaxed) ||
         g_possibleConvoy.load(std::memory_order_relaxed) ||
         !g_hookAddress || !g_originalAdvance) return;
 
@@ -237,6 +315,12 @@ SCSAPI_RESULT scs_telemetry_init(const scs_u32_t version,
     g_possibleConvoy.store(false);
     g_shuttingDown.store(false);
     g_hookEnabled.store(false);
+    g_hookCallbacks.store(0);
+    g_candidatesMatched.store(0);
+    g_layoutRejected.store(0);
+    g_wheelGuardRejected.store(0);
+    g_applyCalls.store(0);
+    g_eventFrames.store(0);
 
     if (!init->register_for_event ||
         init->register_for_event(SCS_TELEMETRY_EVENT_paused, &onFrame, nullptr) != SCS_RESULT_ok ||
