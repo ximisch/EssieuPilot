@@ -14,6 +14,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <cstdio>
 #include <limits>
 
 #include "../bridge/ATS162ExactBuildGate.hpp"
@@ -189,12 +190,36 @@ SCSAPI_RESULT scs_telemetry_init(const scs_u32_t version,
 
     const auto* init = static_cast<const scs_telemetry_init_params_v100_t*>(params);
     g_log = init->common.log;
+    // CRITICAL: common.game_version is the ATS *telemetry schema* version
+    // (1.8 in ATS 1.62.2.2), NOT the displayed game version (1.62).
+    // Original.10 mistakenly compared the schema minor to 62 and refused
+    // the supported SCS API, producing the user's "does not support any
+    // available version of the telemetry api" error.
     if (!init->common.game_id ||
-        std::strcmp(init->common.game_id, SCS_GAME_ID_ATS) != 0 ||
-        SCS_GET_MAJOR_VERSION(init->common.game_version) != 1 ||
-        SCS_GET_MINOR_VERSION(init->common.game_version) != 62)
+        std::strcmp(init->common.game_id, SCS_GAME_ID_ATS) != 0)
+    {
+        say(SCS_LOG_TYPE_error, "EssieuPilot: game_id is not ATS; refusing plugin initialization.");
         return SCS_RESULT_unsupported;
+    }
+    const auto telemetrySchemaMajor = SCS_GET_MAJOR_VERSION(init->common.game_version);
+    const auto telemetrySchemaMinor = SCS_GET_MINOR_VERSION(init->common.game_version);
+    if (telemetrySchemaMajor != 1)
+    {
+        say(SCS_LOG_TYPE_error,
+            "EssieuPilot: unsupported major ATS telemetry schema (expected major 1).");
+        return SCS_RESULT_unsupported;
+    }
+    char schemaLog[160]{};
+    std::snprintf(schemaLog, sizeof(schemaLog),
+        "EssieuPilot: SDK API %u.%u, ATS telemetry schema %u.%u (NOT ATS game version).",
+        static_cast<unsigned>(SCS_GET_MAJOR_VERSION(version)),
+        static_cast<unsigned>(SCS_GET_MINOR_VERSION(version)),
+        static_cast<unsigned>(telemetrySchemaMajor),
+        static_cast<unsigned>(telemetrySchemaMinor));
+    say(SCS_LOG_TYPE_message, schemaLog);
 
+    // Version 1.62.2.2 of the *actual executable* is independently checked
+    // using its exact SHA-256, size and function signature below.
     if (!ep_ats162::exactKnownBuild())
     {
         say(SCS_LOG_TYPE_warning,
