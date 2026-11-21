@@ -198,6 +198,8 @@ type runtimeTrailer struct {
 	// normalized command of 1.0. Default 60; calibrate on an observed
 	// trailer, NOT an assertion about physical wheel angles.
 	PhysicalFullScaleDegrees float64 `json:"physical_full_scale_degrees"`
+	// nil = legacy axle maximum; explicit 0 = straight wheels.
+	PhysicalAngleLimitDegrees *float64 `json:"physical_angle_limit_degrees,omitempty"`
 }
 type runtimeProfile struct {
 	Name             string           `json:"name"`
@@ -282,6 +284,18 @@ func selectedPhysicalTrailerForATS(p runtimeProfile, detectedID string) (runtime
     return legacy,"SELECTION_MANUELLE_NON_ASSOCIEE",true
 }
 
+// A separate physical cap can be exactly zero without replacing the
+// saved per-axle max. Invalid values are rejected, never clamped silently.
+func effectivePhysicalAxle(t runtimeTrailer, a runtimeAxle) (runtimeAxle, bool) {
+    if t.PhysicalAngleLimitDegrees==nil{return a,true}
+    cap:=*t.PhysicalAngleLimitDegrees
+    if math.IsNaN(cap)||math.IsInf(cap,0)||cap<0||cap>60||cap>a.MaxAngle {
+        return runtimeAxle{},false
+    }
+    a.MaxAngle=cap
+    return a,true
+}
+
 // The game bridge is per trailer; reject conflicting per-axle directions,
 // so the UI never claims to control different axle groups when it can't.
 func trailerCompatible(t runtimeTrailer) (runtimeAxle, bool) {
@@ -300,7 +314,11 @@ func trailerCompatible(t runtimeTrailer) (runtimeAxle, bool) {
 			return runtimeAxle{}, false
 		}
 	}
-	return chosen, found && chosen.MaxAngle > 0 && chosen.MaxAngle <= 60 && chosen.TurnRate >= 0 && chosen.TurnRate <= 90 && chosen.CenterRate >= 0 && chosen.CenterRate <= 90
+	return chosen, found && chosen.MaxAngle >= 0 && chosen.MaxAngle <= 60 &&
+        chosen.Ratio > 0 && chosen.Ratio <= 2 &&
+        chosen.TurnRate >= 0 && chosen.TurnRate <= 90 &&
+        chosen.CenterRate >= 0 && chosen.CenterRate <= 90 &&
+        !math.IsNaN(chosen.MaxAngle) && !math.IsInf(chosen.MaxAngle,0)
 }
 func analogFromDevices(p runtimeProfile, devices []device) float64 {
 	parts := strings.Split(p.AnalogAxis, ":")
@@ -639,6 +657,10 @@ func startSteeringRuntime(s *server) func() {
 				if !selectedForPreview {
 					snapshot.PlannedAngleReason = "Association remorque : "+previewMode+" (Diagnostic → choisir une configuration)."
 				} else if axle, compatible := trailerCompatible(selectedPreview); compatible {
+					axle, compatible=effectivePhysicalAxle(selectedPreview,axle)
+					if !compatible {
+						snapshot.PlannedAngleReason="Limite physique invalide : 0 à 60° et au plus la limite de l’essieu"
+					} else {
 					speedValid := observedTelemetry.Connected && !observedTelemetry.Paused &&
 						now.Sub(lastTelemetryAt) < time.Second
 					speed := 0.0
@@ -656,6 +678,7 @@ func startSteeringRuntime(s *server) func() {
 						snapshot.PlannedAngleReason = "Consigne calculée hors jeu ; vitesse ATS non confirmée : aucun recentrage de simulation"
 					} else {
 						snapshot.PlannedAngleReason = "Consigne calculée hors jeu ; vitesse ATS vérifiée (télémétrie SCS)"
+					}
 					}
 				} else {
 					snapshot.PlannedAngleReason = "Groupes d'essieux incompatibles avec une commande physique unique par remorque"
@@ -726,6 +749,7 @@ func startSteeringRuntime(s *server) func() {
 			axlesCompatible := selected
 			if axlesCompatible {
 				physicalAxle, axlesCompatible = trailerCompatible(physicalTrailer)
+				if axlesCompatible {physicalAxle,axlesCompatible=effectivePhysicalAxle(physicalTrailer,physicalAxle)}
 			}
 			conditions := experimentalPhysicalConditions{
 				ExplicitResearchOptIn: physicalResearchOptIn,
@@ -739,7 +763,7 @@ func startSteeringRuntime(s *server) func() {
 			allowed := allowExperimentalPhysics(conditions)
 			reasons := physicalGateReasons(conditions,bridge != nil,snapshot.PlannedAngleValid)
 			if !selected {reasons=append(reasons,associationMode)}
-			if selected && !axlesCompatible {reasons=append(reasons,"ESSIEUX_AVEC_ANGLES_SENS_OU_RATIOS_DIFFERENTS")}
+			if selected && !axlesCompatible {reasons=append(reasons,"ESSIEUX_OU_LIMITE_PHYSIQUE_INCOMPATIBLES")}
 			if bridge != nil && allowed && snapshot.PlannedAngleValid {
 				if normalized, ok := normalizedPhysicalAngle(plannedAngle, physicalAxle.MaxAngle, physicalTrailer.PhysicalFullScaleDegrees); ok {
 					if err := bridge.publish(true, 0, normalized); err == nil {
@@ -748,6 +772,7 @@ func startSteeringRuntime(s *server) func() {
 						snapshot.PhysicalPacketNormalized = float64(normalized)
 						snapshot.PhysicalControlEnabled = true // IPC request, NOT wheel proof.
 					snapshot.PhysicalCalibrationReferenceDegrees=physicalReferenceDegrees(physicalTrailer.PhysicalFullScaleDegrees)
+                        snapshot.PhysicalAngleLimitDegrees=physicalAxle.MaxAngle
 						ack := readPhysicalAck()
 						snapshot.PhysicalCallbackAck = ack.Received && ack.TrailerIndex == 0
 						if snapshot.PhysicalCallbackAck {
