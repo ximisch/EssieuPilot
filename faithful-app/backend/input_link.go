@@ -53,6 +53,7 @@ type inputLinkSnapshot struct {
 	LastInput              string `json:"last_input"`
 	LastEventTime          string `json:"last_event_time"`
 	PhysicalControlEnabled bool   `json:"physical_control_enabled"`
+	PhysicalValidationStatus string `json:"physical_validation_status"`
 	DLLConfirmed           bool   `json:"dll_confirmed"`
 	StatusMessage          string `json:"status_message"`
 }
