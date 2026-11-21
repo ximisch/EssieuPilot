@@ -50,10 +50,10 @@ function game($given){
   }
  }
  $possible=New-Object 'System.Collections.Generic.List[string]'
- foreach($r in ($roots|Where-Object {$_ -and (Test-Path -LiteralPath $_ -PathType Container)}|Select-Object -Unique)){
+ foreach($r in ($roots|Where-Object {$_ -and [IO.Directory]::Exists($_)}|Select-Object -Unique)){
   $possible.Add((Join-Path $r 'steamapps\common\American Truck Simulator'))
   $vdf=Join-Path $r 'steamapps\libraryfolders.vdf'
-  if(Test-Path -LiteralPath $vdf -PathType Leaf){
+  if([IO.File]::Exists($vdf)){
    foreach($m in [regex]::Matches((Get-Content -LiteralPath $vdf -Raw),'"path"\s+"([^"]+)"')){
     $lib=$m.Groups[1].Value.Replace('\\','\')
     $possible.Add((Join-Path $lib 'steamapps\common\American Truck Simulator'))
@@ -61,7 +61,7 @@ function game($given){
   }
  }
  $found=@($possible|Where-Object {
-  Test-Path -LiteralPath (Join-Path $_ 'bin\win_x64\amtrucks.exe') -PathType Leaf
+  [IO.File]::Exists((Join-Path $_ 'bin\win_x64\amtrucks.exe'))
  }|ForEach-Object {[IO.Path]::GetFullPath($_)}|Select-Object -Unique)
  if($found.Count -eq 1){return $found[0]}
  if($found.Count -gt 1){
