@@ -8,7 +8,9 @@
     document.body.classList.add('ep18');
     const oldHero=home.querySelector('.ep16-home-hero');
     const leds=oldHero?.querySelector('.ep16-hero-statuses');
-    if(!oldHero || !leds) return;
+    const atsLed=document.getElementById('ep16ATSStatus');
+    const axleStatus=document.getElementById('ep16AxleStatus');
+    if(!oldHero || !leds || !atsLed || !axleStatus) return;
     const element=(tag,cl,text)=>{
       const node=document.createElement(tag);
       if(cl)node.className=cl;
