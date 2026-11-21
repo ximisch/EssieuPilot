@@ -25,7 +25,7 @@ import (
 //go:embed web/*
 var frontend embed.FS
 
-const technicalVersion = "2.0.0-original.17"
+const technicalVersion = "2.0.0-original.18"
 
 type server struct {
 	telemetry telemetryBridge
@@ -259,7 +259,7 @@ func (s *server) index(w http.ResponseWriter, r *http.Request) {
 	// The original front end remains intact; only the existing technical version
 	// footer is replaced and a status-poll script is appended.
 	html = strings.ReplaceAll(html, "Version technique 1.6.2", "Version technique "+technicalVersion)
-	html = strings.Replace(html, "</body>", `<script src="/original-live.js" defer></script><script src="/original16-ui.js" defer></script></body>`, 1)
+	html = strings.Replace(html, "</body>", `<script src="/original-live.js" defer></script><script src="/original16-ui.js" defer></script><script src="/original18.js" defer></script></body>`, 1)
 	buf = []byte(html)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Write(buf)
