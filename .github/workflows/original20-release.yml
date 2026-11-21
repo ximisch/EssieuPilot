@@ -1,0 +1,310 @@
+name: EssieuPilot Original.20 — diagnostics gauche droite et DLL protégée
+
+on:
+  push:
+    branches: ['development/original20-bidirectional-diagnostics']
+    paths:
+      - 'release-trigger/original20.txt'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: essieupilot-original20-protected-release
+  cancel-in-progress: true
+
+jobs:
+  package:
+    runs-on: windows-2022
+    timeout-minutes: 45
+    steps:
+      - name: Checkout faithful original UI
+        uses: actions/checkout@v4
+
+      - name: Go 1.23
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.23.2'
+
+      - name: .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Verify unchanged Original 15 ATS engine and seven Steel Vector menus
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $web='faithful-app/backend/web'
+          foreach($f in @('styles.css','modern.css','steering_logic.js','logo.png','hero_reference.jpg')) {
+            $hashOriginal=(Get-FileHash "original-ui-reference/$f" -Algorithm SHA256).Hash
+            $hashActual=(Get-FileHash "$web/$f" -Algorithm SHA256).Hash
+            if($hashOriginal -ne $hashActual){throw "Protected Original15 component changed: $f"}
+          }
+          foreach($file in @('app.js','modern.js','original-live.js','steering_logic.js','steel-vector.js','original20-diagnostic.js')) {
+            & node --check "$web/$file"
+            if($LASTEXITCODE -ne 0){throw "Invalid JavaScript: $file"}
+          }
+          $base=[IO.File]::ReadAllText('original-ui-reference/app.js')
+          $actual=[IO.File]::ReadAllText("$web/app.js")
+          if($actual -cne $base.Replace('Math.min(devicePixelRatio||1,2)','Math.min(devicePixelRatio||1,3)')){
+            throw 'Original15 app logic modified beyond high-DPI rendering'
+          }
+          $main=[IO.File]::ReadAllText('faithful-app/backend/main.go')
+          foreach($k in @('/steel-vector.css','/steel-vector.js','2.0.0-original.20')) {
+            if(-not $main.Contains($k)){throw "Steel Vector missing from backend: $k"}
+          }
+          $index=[IO.File]::ReadAllText("$web/index.html")
+          if(-not $index.Contains('<title>EssieuPilot</title>') -or -not $index.Contains('steel-vector.css') -or -not $index.Contains('original20.css')) {
+            throw 'App name or stylesheet missing'
+          }
+          $skin=[IO.File]::ReadAllText("$web/steel-vector.js")
+          foreach($k in @('sv-axles','sv-game','sv-photo-frame','sv-profiles','sv-action-tools','data-modern-tab','Pilotage activé')) {
+            if(-not $skin.Contains($k)){throw "Steel Vector page missing: $k"}
+          }
+          if(-not (Test-Path "$web/steel-vector-hero.webp")){throw 'Panorama image missing'}
+          if((Get-Item "$web/steel-vector-hero.webp").Length -lt 100000){throw 'Panorama photo has insufficient resolution'}
+          $live=[IO.File]::ReadAllText("$web/original-live.js")
+          foreach($k in @('epPhysicalTrailerChoice','physical_angle_limit_degrees','/api/status','physical_full_scale_degrees')) {
+            if(-not $live.Contains($k)){throw "Original15 live module missing: $k"}
+          }
+          $runtime=[IO.File]::ReadAllText('faithful-app/backend/steering_runtime_windows.go')
+          foreach($k in @('selectedPhysicalTrailerForATS(active,detectedID)','physicalTestConsent()','physical-test-consent.txt','bridge.publish(false')) {
+            if(-not $runtime.Contains($k)){throw "Original15 physical safety missing: $k"}
+          }
+          $cpp=[IO.File]::ReadAllText('integration/physical/EssieuPilotATS.cpp')
+          foreach($k in @('epbridge::acknowledgeApplied','g_appliedZero','candidateTrailerObject','g_appliedNegative','g_appliedPositive','signed callbacks (NOT wheel motion)')) {
+            if(-not $cpp.Contains($k)){throw "Experimental ATS DLL guard missing: $k"}
+          }
+          $diag=[IO.File]::ReadAllText('faithful-app/backend/physical_diagnostic.go')
+          foreach($k in @('last_with_left_input','last_with_right_input')) {if(-not $diag.Contains($k)){throw "Signed direction history missing: $k"}}
+          $migration=[IO.File]::ReadAllText('integration/installer/Manage-ATS-Physical-Test.ps1')
+          foreach($k in @('knownManualOriginal15','knownManualOriginal17','knownManualOriginal19')) {if(-not $migration.Contains($k)){throw "Known original DLL migration missing: $k"}}
+          Write-Host 'PASS: Original20 UI, signed diagnostic, original ATS physics guard, known DLL SHA migration'
+
+      - name: Test Go backend, update channel safety, compile
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          New-Item -ItemType Directory -Force 'out' | Out-Null
+          Push-Location 'faithful-app/backend'
+          try {
+            Get-ChildItem -Filter '*.go' | ForEach-Object {
+              & gofmt -w $_.FullName
+              if($LASTEXITCODE -ne 0){throw "gofmt failed: $($_.Name)"}
+            }
+            go test -v ./...
+            if($LASTEXITCODE -ne 0){throw 'Backend tests failed'}
+            go build -trimpath -o ../../out/EssieuPilotBackend.exe .
+            if($LASTEXITCODE -ne 0){throw 'Backend build failed'}
+          } finally {Pop-Location}
+          if(-not(Test-Path 'out/EssieuPilotBackend.exe')){throw 'Go backend absent'}
+
+      - name: Compile Windows host with original UI and check real form creation
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          New-Item -ItemType Directory -Force 'faithful-app/host/Assets' | Out-Null
+          Copy-Item faithful-app/backend/web/EssieuPilot.ico faithful-app/host/Assets/EssieuPilot.ico
+          dotnet publish faithful-app/host/EssieuPilot.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true --output out
+          if($LASTEXITCODE -ne 0){throw 'Host compile failed'}
+          if(-not(Test-Path 'out/EssieuPilot.exe')){throw 'Native Windows executable absent'}
+          & .\out\EssieuPilot.exe --ui-smoke
+          if($LASTEXITCODE -ne 0){throw 'Original native window did not open'}
+          Write-Host 'PASS: WinForms host with original interface opens'
+
+      - name: Test original HTTP interface and live status endpoint on Windows
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $p=Start-Process -FilePath (Resolve-Path 'out/EssieuPilotBackend.exe').Path -PassThru -NoNewWindow -RedirectStandardOutput 'ready.txt' -RedirectStandardError 'backend-errors.txt'
+          try {
+            $ready=$null
+            for($i=0;$i -lt 60;$i++){
+              Start-Sleep -Milliseconds 300
+              if(Test-Path ready.txt) {
+                $match=Select-String -Path ready.txt -Pattern '^READY http://127\.0\.0\.1:[0-9]+/' | Select-Object -First 1
+                if($match) {$ready=([string]$match.Line).Substring(6);break}
+              }
+              if($p.HasExited){throw 'Backend quit during startup'}
+            }
+            if(-not $ready){throw 'Backend HTTP endpoint not ready'}
+            $web=Invoke-WebRequest -Uri $ready -UseBasicParsing
+            if($web.StatusCode -ne 200 -or -not $web.Content.Contains('modern.css') -or -not $web.Content.Contains('original-live.js')){
+              throw 'Original interface HTML not served correctly'
+            }
+            $status=Invoke-RestMethod -Uri ($ready+'api/status')
+            if($null -eq $status.game_running -or $null -eq $status.steering_ack){
+              throw 'ATS dual status API invalid'
+            }
+            Start-Sleep -Milliseconds 450
+            $control=Invoke-RestMethod -Uri ($ready+'api/control-link')
+            if(-not $control.service_running -or -not $control.ipc_ready -or $control.physical_control_enabled -or $control.dll_confirmed){
+              throw 'Controller missing, IPC not ready, or unsafe physical flag enabled'
+            }
+            $token=[regex]::Match($web.Content,'data-token="([0-9a-f]{64})"').Groups[1].Value
+            if(-not $token){throw 'Could not extract local anti-CSRF token for profile update test'}
+            $profile=Invoke-RestMethod -Uri ($ready+'api/config')
+            $profile.profiles[0].toggle_key='KEY:F12'
+            $profile.profiles[0].left_key='KEY:KeyJ'
+            $profile.profiles[0].right_key='KEY:KeyK'
+            $payload=$profile|ConvertTo-Json -Depth 100
+            Invoke-RestMethod -Uri ($ready+'api/config') -Method Post -Headers @{'X-ATS-Token'=$token} -ContentType 'application/json; charset=utf-8' -Body ([Text.Encoding]::UTF8.GetBytes($payload)) | Out-Null
+            $updated=$false
+            for($i=0;$i -lt 20;$i++){
+              Start-Sleep -Milliseconds 150
+              $control=Invoke-RestMethod -Uri ($ready+'api/control-link')
+              if($control.toggle_binding -eq 'KEY:F12' -and $control.left_binding -eq 'KEY:KeyJ' -and $control.right_binding -eq 'KEY:KeyK'){$updated=$true;break}
+            }
+            if(-not $updated){throw 'Custom profile key changes did not reach controller without DLL reconfiguration'}
+            if($control.physical_control_enabled){throw 'Unsafe physical steering enabled during key test'}
+            Write-Host 'PASS: GUI saved F12/J/K keys were applied dynamically by input controller; IPC neutral'
+            $diagPath=Join-Path $env:LOCALAPPDATA 'EssieuPilot\ATS-Physical-Test\diagnostic-original15.json'
+            if(Test-Path $diagPath){Remove-Item $diagPath -Force}
+            $diagResponse=Invoke-WebRequest -Uri ($ready+'api/physical-diagnostic') -SkipHttpErrorCheck -UseBasicParsing
+            if($diagResponse.StatusCode -ne 404){throw 'Diagnostic endpoint must not invent an in-game test'}
+            $up=Invoke-RestMethod -Uri ($ready+'api/updates')
+            if($up.version -ne '2.0.0-original.19' -or -not $up.feed_configured){
+              throw 'In-app update service not configured'
+            }
+            Write-Host 'PASS: Original HTML, /api/status, /api/control-link and /api/updates on Windows'
+          } finally {
+            if(-not $p.HasExited){Stop-Process -Id $p.Id -Force}
+          }
+
+      - name: Test transactional DLL and SCS installer without the real game
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File integration/installer/Test-Manage-ATS-Plugins-V2.ps1
+          if($LASTEXITCODE -ne 0){throw 'Faux fichiers ATS non validés par les tests de restauration'}
+
+      - name: Checkout pinned MIT SCS SDK and MinHook for physical ATS DLL
+        uses: actions/checkout@v4
+        with:
+          repository: dariowouters/ts-extra-utilities
+          ref: 41b307496960732571de8e43100adba75cd115a1
+          path: upstream-ts-extra
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Compile experimental SCS plugin and make SHA-256 module manifest
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $up=(Resolve-Path 'upstream-ts-extra').Path
+          cmake -S integration/physical -B physical-build -G 'Visual Studio 17 2022' -A x64 "-DTS_EXTRA_ROOT=$up"
+          if($LASTEXITCODE -ne 0){throw 'R&D DLL CMake failed'}
+          cmake --build physical-build --config Release --parallel 2
+          if($LASTEXITCODE -ne 0){throw 'R&D DLL native C++ compilation failed'}
+          $dll=Get-ChildItem 'physical-build' -Recurse -File -Filter 'EssieuPilotATS.dll'|Select-Object -First 1
+          if(-not $dll){throw 'EssieuPilotATS.dll missing'}
+          $cpp=[IO.File]::ReadAllText('integration/physical/EssieuPilotATS.cpp')
+          foreach($needle in @('exactKnownBuild()','epbridge::read(0, requested)','candidateTrailerObject','g_possibleConvoy','g_paused','MH_EnableHook','epbridge::acknowledgeApplied')) {
+            if(-not $cpp.Contains($needle)){throw "Unprotected physics path: $needle"}
+          }
+          $gate=[IO.File]::ReadAllText('integration/bridge/ATS162ExactBuildGate.hpp')
+          if(-not $gate.Contains('EXPECTED_SHA256')){throw 'Exact ATS build fingerprint absent'}
+          if($cpp.Contains('SCS_GET_MINOR_VERSION(init->common.game_version) != 62')){
+            throw 'Original.10 telemetry schema/game version confusion is still present'
+          }
+          if(-not $cpp.Contains('telemetrySchemaMajor != 1') -or
+             -not $cpp.Contains('ATS telemetry schema') -or
+             -not $cpp.Contains('ep_ats162::exactKnownBuild()')){
+            throw 'Native DLL is missing the corrected ATS telemetry major + exact executable SHA gates'
+          }
+          New-Item -ItemType Directory -Force 'physical-payload'|Out-Null
+          Copy-Item -LiteralPath $dll.FullName -Destination 'physical-payload/EssieuPilotATS.dll'
+          $sha=(Get-FileHash 'physical-payload/EssieuPilotATS.dll' -Algorithm SHA256).Hash.ToLowerInvariant()
+          @{schema=1;game='ats';game_series='1.62';module_version='original.15-experimental-solo';files=@(@{name='EssieuPilotATS.dll';sha256=$sha})}|
+            ConvertTo-Json -Depth 6|Set-Content -LiteralPath 'physical-payload/module-manifest.json' -Encoding UTF8
+          Write-Host "ATS DLL SHA-256 = $sha ; compatibility = unverified experimental on exact ATS 1.62.2.2"
+          Write-Host "No .scs needed for this native hook test. Physical motion NOT validated."
+
+      - name: Build isolated Windows installer and ZIP backup
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          choco install innosetup -y --no-progress
+          if($LASTEXITCODE -ne 0){throw 'Inno Setup missing'}
+          $iscc=Join-Path ([Environment]::GetFolderPath('ProgramFilesX86')) 'Inno Setup 6\ISCC.exe'
+          New-Item -ItemType Directory -Force release | Out-Null
+          $env:EP_PUBLISH_DIR=(Resolve-Path out).Path
+          $env:EP_OUT_DIR=(Resolve-Path release).Path
+          $env:EP_APP_VERSION='2.0.20'
+          $env:EP_VALIDATED_DLL_PAYLOAD=''
+          $env:EP_RND_PHYSICS_PAYLOAD=(Resolve-Path 'physical-payload').Path
+          & $iscc 'installer/EssieuPilot-Original.iss'
+          if($LASTEXITCODE -ne 0){throw 'Installer build failed'}
+          $installer='release/Installer_EssieuPilot.exe'
+          if(-not(Test-Path $installer)){throw 'Installer missing'}
+          Compress-Archive -Path $installer -DestinationPath 'release/EssieuPilot_Interface_Originale_ZIP.zip' -CompressionLevel Optimal
+          Expand-Archive -LiteralPath 'release/EssieuPilot_Interface_Originale_ZIP.zip' -DestinationPath 'verify'
+          if((Get-FileHash $installer -Algorithm SHA256).Hash -ne (Get-FileHash 'verify/Installer_EssieuPilot.exe' -Algorithm SHA256).Hash){throw 'ZIP invalid'}
+          Get-FileHash $installer -Algorithm SHA256
+          # Standalone fallback: publish the EXACT same native DLL for manual tests.
+          Copy-Item -LiteralPath 'physical-payload/EssieuPilotATS.dll' -Destination 'release/EssieuPilotATS.dll'
+          $dllSha=(Get-FileHash 'release/EssieuPilotATS.dll' -Algorithm SHA256).Hash.ToLowerInvariant()
+          $expected=(Get-Content 'physical-payload/module-manifest.json' -Raw|ConvertFrom-Json).files[0].sha256
+          if($dllSha -cne [string]$expected){throw 'Manual and automatically bundled native DLL SHA-256 mismatch'}
+          $manualInfo=@'
+          EssieuPilot Original.20, ATS 1.62.2.2 SOLO — EXPERIMENTAL
+          Installateur conseillé : Installer_EssieuPilot.exe (DLL copiée automatiquement).
+          En cas d'échec, place manuellement EssieuPilotATS.dll dans :
+          <Steam>\steamapps\common\American Truck Simulator\bin\win_x64\plugins
+          La DLL de la préversion Original.10 est remplacée automatiquement uniquement
+          si son SHA-256 correspond à la DLL officielle. Les plugins inconnus sont protégés.
+          Avant toute modification, FERME ATS. Conserve une copie de ton profil.
+          Vérifie ensuite Documents\American Truck Simulator\game.log.txt pour le
+          message « EssieuPilot: experimental 1.62.2.2 DLL loaded ».
+          Original.20 ajoute des compteurs gauche/droite dans game.log et un rapport par sens.
+          Ce diagnostic ne corrige PAS encore une direction qui ne bouge pas dans ATS.
+          Le braquage PHYSIQUE n'est PAS validé et peut causer un crash.
+          Activer explicitement l'essai seulement en SOLO, JAMAIS EN CONVOI.
+          '@
+          Set-Content -LiteralPath 'release/LISEZ_MOI_DLL_ORIGINAL20.txt' -Value $manualInfo -Encoding UTF8
+          Get-FileHash 'release/EssieuPilotATS.dll' -Algorithm SHA256
+
+      - name: Upload experimental Windows updater with native DLL bundled
+        uses: actions/upload-artifact@v4
+        with:
+          name: EssieuPilot-Original20-Steel-Vector-Windows
+          path: |
+            release/Installer_EssieuPilot.exe
+            release/EssieuPilot_Interface_Originale_ZIP.zip
+            release/EssieuPilotATS.dll
+            release/LISEZ_MOI_DLL_ORIGINAL15.txt
+          retention-days: 21
+
+      - name: Publish separate test version with original UI (NOT stable)
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference='Stop'
+          $tag='v2.0.0-original.20'
+          gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null
+          if($LASTEXITCODE -eq 0){throw 'Already published: refusing duplicate release'}
+          $notes=@'
+          # EssieuPilot — Original 20 · Steel Vector, essai gauche/droite
+
+          Version technique 2.0.0-original.20. L'application reste nommée « EssieuPilot ».
+          Cette version reprend directement Original 19 Steel Vector, et conserve ses profils ainsi que ses réglages.
+
+          **Diagnostic progressif, sans changement spéculatif de la physique ATS :**
+          - L'onglet Diagnostique présente séparément les essais GAUCHE et DROITE, les angles calculés et la valeur signée envoyée à la DLL.
+          - Un rapport JSON conserve les deux derniers essais d'une même session ATS, même après Alt+Tab ou fermeture du jeu.
+          - game.log.txt enregistre désormais les compteurs de callbacks DLL négatifs et positifs. Un callback ne prouve PAS le mouvement des roues.
+          - Le voyant « Essieux » affiche le mode activé/désactivé par la touche configurée (F8 par défaut), sans le confondre avec le braquage physique réellement observé.
+          - La reconnaissance par identifiant ATS recharge les réglages de remorque déjà associés ; elle ne devine PAS automatiquement la géométrie des essieux inconnus.
+          - Les réglages, touches, application Steel Vector, gestion des profils et la physique existante restent conservés. Aucun offset, sens ou calcul physique natif n'a été modifié dans ce correctif.
+          - L'installateur CONTIENT la nouvelle DLL diagnostique expérimentale ; sa mise à jour utilise le gestionnaire de l'Original 15 avec SHA-256, sauvegarde et protection des DLL tierces. Les DLL manuelles officielles Original 15, 17 et 19 peuvent être reconnues par empreinte exacte.
+          - Pas de nouveau .scs ; ATS 1.62.2.2 exact seulement, SOLO uniquement, Convoi non validé.
+          - Il reste nécessaire de tester réellement dans ATS pourquoi une seule direction bouge. Cela ne peut pas être prouvé par la compilation.
+
+          **Après installation** : ATS fermé pendant l'installation, sauvegarde des profils, test à l'arrêt en SOLO sur la même remorque. Active avec la touche configurée, maintiens 2-3 s la gauche puis la droite, ouvre Diagnostique → télécharge « Diagnostic gauche / droite » et vérifie game.log.txt (signed callbacks negative et positive). En cas de problème, retourne à Original 19.
+          '@
+          gh release create $tag release/Installer_EssieuPilot.exe release/EssieuPilot_Interface_Originale_ZIP.zip release/EssieuPilotATS.dll release/LISEZ_MOI_DLL_ORIGINAL15.txt --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title 'EssieuPilot — Original 20 · diagnostic bidirectionnel Steel Vector' --prerelease --notes $notes
+          if($LASTEXITCODE -ne 0){throw 'Publication failed'}
+          gh release view $tag --repo $env:GITHUB_REPOSITORY
