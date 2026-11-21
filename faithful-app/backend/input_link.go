@@ -36,6 +36,14 @@ type inputLinkSnapshot struct {
 	AllowedRightCount      uint64 `json:"allowed_right_count"`
 	SteeringInputAllowed   bool   `json:"steering_input_allowed"`
 	HeldDirection          string `json:"held_direction"`
+	RequestedPercent       float64 `json:"requested_percent"`
+	RequestedSource        string  `json:"requested_source"`
+	AnalogDetectedPercent  float64 `json:"analog_detected_percent"`
+	AnalogAuthorizedPercent float64 `json:"analog_authorized_percent"`
+	LastAuthorizedCommand  string  `json:"last_authorized_command"`
+	LastAuthorizedTime     string  `json:"last_authorized_time"`
+	AnalogLeftCount        uint64  `json:"analog_left_count"`
+	AnalogRightCount       uint64  `json:"analog_right_count"`
 	LastDirection          string `json:"last_direction"`
 	LastDirectionTime      string `json:"last_direction_time"`
 	LastFocusTime          string `json:"last_focus_time"`
