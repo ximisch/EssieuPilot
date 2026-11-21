@@ -6,11 +6,14 @@ param(
     [ValidateSet("Preflight","Install","Remove","Status")][string]$Action="Status",
     [string]$GamePath="",
     [string]$PackageDir=$PSScriptRoot,
-    [string]$StateDir=""
+    [string]$StateDir="",
+    [string]$ModPath=""
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference="Stop"
 $names=@("EssieuPilotATS.dll","scs_telemetry_hub.dll")
+# SCS mods are user-provided addons in Documents, NEVER ATS game-data .scs files.
+$modNamePattern='^EssieuPilot_[A-Za-z0-9._-]{1,90}\.scs$'
 if (-not $StateDir) {
     if (-not $env:LOCALAPPDATA) {throw "LOCALAPPDATA indisponible"}
     $StateDir=Join-Path $env:LOCALAPPDATA "EssieuPilot\ATS-Modules"
@@ -68,6 +71,41 @@ function GameRoot([string]$given) {
     if ($found.Count -gt 1) {throw "Plusieurs installations ATS détectées : sélectionne le dossier cible."}
     return $found[0]
 }
+function ReadMods($record) {
+    if ($null -eq $record -or $record.PSObject.Properties.Name -notcontains "mods" -or $null -eq $record.mods) {
+        return ,@()
+    }
+    return ,@($record.mods)
+}
+function CheckModNames($mods) {
+    if (@($mods).Count -gt 32) {throw "Trop de mods .scs dans le paquet."}
+    $seen=@{}
+    foreach($item in @($mods)) {
+        $name=[string]$item.name
+        if($name -cnotmatch $modNamePattern) {
+            throw "Nom .scs EssieuPilot interdit : $name"
+        }
+        $key=$name.ToLowerInvariant()
+        if($seen.ContainsKey($key)) {throw "Mod .scs en doublon : $name"}
+        $seen[$key]=$true
+        if ([string]$item.sha256 -cnotmatch '^[0-9a-f]{64}$') {throw "Empreinte .scs invalide : $name"}
+    }
+}
+function ResolveModPath([string]$given) {
+    if(-not $given) {
+        $documents=[Environment]::GetFolderPath([Environment+SpecialFolder]::MyDocuments)
+        if(-not $documents){throw "Dossier Documents ATS introuvable."}
+        $given=Join-Path $documents "American Truck Simulator\mod"
+    }
+    $full=[IO.Path]::GetFullPath($given)
+    if(Test-Path -LiteralPath $full) {
+        $dir=Get-Item -LiteralPath $full -Force
+        if(-not $dir.PSIsContainer -or ($dir.Attributes -band [IO.FileAttributes]::ReparsePoint)){
+            throw "Dossier mod ATS non standard : aucune modification."
+        }
+    }
+    return $full
+}
 function LoadPackage {
     $path=Join-Path $PackageDir "module-manifest.json"
     if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
@@ -89,6 +127,15 @@ function LoadPackage {
             throw "DLL fournie invalide ou absente : $name"
         }
     }
+    $mods=ReadMods $m
+    CheckModNames $mods
+    foreach($item in $mods){
+        $source=Join-Path $PackageDir ([string]$item.name)
+        if(-not(Test-Path -LiteralPath $source -PathType Leaf) -or
+           (Digest $source) -cne [string]$item.sha256){
+            throw "Mod .scs absent ou hash invalide : $($item.name)"
+        }
+    }
     return $m
 }
 function OldRecord {
@@ -101,6 +148,13 @@ function OldRecord {
         if($items.Count -ne 1 -or [string]$items[0].sha256 -cnotmatch '^[0-9a-f]{64}$') {
             throw "Enregistrement DLL invalide : $name"
         }
+    }
+    $oldMods=ReadMods $r
+    CheckModNames $oldMods
+    if($oldMods.Count -gt 0 -and
+        ($r.PSObject.Properties.Name -notcontains "mods_path" -or
+        [string]::IsNullOrWhiteSpace([string]$r.mods_path))){
+        throw "Emplacement des mods .scs de l'ancienne installation inconnu."
     }
     return $r
 }
