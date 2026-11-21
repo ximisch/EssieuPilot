@@ -2,6 +2,9 @@ name: Créer les versions de test EssieuPilot (Windows)
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - interface-maquette-correction
 
 permissions:
   contents: write
@@ -27,7 +30,7 @@ jobs:
           $iscc = Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'
           if (-not (Test-Path $iscc)) { throw "ISCC.exe introuvable : $iscc" }
 
-      - name: Compiler et publier la troisième version de test
+      - name: Compiler et publier la quatrième version de test
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
@@ -35,7 +38,7 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $repo = '${{ github.repository }}'
           $iscc = Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'
-          foreach ($build in @(3)) {
+          foreach ($build in @(4)) {
             $tag = "v1.7.0-test.$build"
             $publishDir = Join-Path $env:GITHUB_WORKSPACE "build\test$build"
             $outputDir = Join-Path $env:GITHUB_WORKSPACE "output\test$build"
@@ -62,7 +65,7 @@ jobs:
               if ($LASTEXITCODE -ne 0) { throw "Mise à jour GitHub Release échouée" }
             }
             else {
-              gh release create "$tag" "$installer" --repo $repo --title "EssieuPilot - test de mise à jour $build" --prerelease --notes "Édition de test indépendante de la version 1.6.1. Code source public. Le bouton Mises à jour permet de passer de test.2 à test.3 et de vérifier la conservation des profils ; simulation sans commandes physiques ATS ni Convoi. Pas de signature numérique."
+              gh release create "$tag" "$installer" --repo $repo --title "EssieuPilot - test de mise à jour $build" --prerelease --notes "Édition de test indépendante de la version 1.6.1. Code source public. Nouveau tableau de bord et menus harmonisés, états de connexion et essieux, suppression des profils avec confirmation ; simulation sans commandes physiques ATS ni Convoi. Pas de signature numérique."
               if ($LASTEXITCODE -ne 0) { throw "Création GitHub Release échouée pour $tag" }
             }
           }
