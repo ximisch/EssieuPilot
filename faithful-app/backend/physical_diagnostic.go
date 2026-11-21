@@ -1,6 +1,6 @@
 package main
 
-// Original.16: persist a concise R&D diagnostic while ATS is actually focused.
+// Original.17: persist a concise R&D diagnostic while ATS is actually focused.
 // This is a read-only observation of the command gate, not proof of wheel motion.
 import (
  "encoding/json"
@@ -13,7 +13,7 @@ import (
  "time"
 )
 
-const physicalDiagnosticFilename = "diagnostic-original16.json"
+const physicalDiagnosticFilename = "diagnostic-original17.json"
 const physicalDiagnosticMaxEvents = 40
 
 type physicalDiagnosticFrame struct {
@@ -78,7 +78,7 @@ func newPhysicalDiagnosticRecorder() *physicalDiagnosticRecorder {
 func newPhysicalDiagnosticRecorderAt(path string) *physicalDiagnosticRecorder {
  return &physicalDiagnosticRecorder{
   path:path,
-  report:physicalDiagnosticReport{Schema:1,Build:"Original.16",
+  report:physicalDiagnosticReport{Schema:1,Build:"Original.17",
    Warning:"Rapport IPC/SDK de recherche. Reference de calibrage non mesuree, valeur ATS normalisee non equivalente aux degres reels. Un ACK ne prouve pas le mouvement des roues. Pilotage independant des essieux NON disponible. Les valeurs IPC non nulles ne demontrent PAS une variation de l angle physique visible. SOLO uniquement.",
    Events:make([]physicalDiagnosticFrame,0)},
  }
@@ -206,7 +206,7 @@ func (s *server) getPhysicalDiagnostic(w http.ResponseWriter,r *http.Request) {
  path,err:=physicalDiagnosticPath()
  if err!=nil {http.Error(w,"Dossier de diagnostic indisponible",500);return}
  data,err:=os.ReadFile(path)
- if err!=nil {http.Error(w,"Aucun essai ATS enregistré depuis Original.16",404);return}
+ if err!=nil {http.Error(w,"Aucun essai ATS enregistré depuis Original.17",404);return}
  if len(data)>200000 || !json.Valid(data) {http.Error(w,"Rapport de diagnostic invalide",500);return}
  w.Header().Set("Content-Type","application/json; charset=utf-8")
  w.Header().Set("Content-Disposition",`attachment; filename="EssieuPilot_Diagnostic_Physique_Original12.json"`)
