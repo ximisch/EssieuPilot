@@ -34,7 +34,7 @@ function GameRoot([string]$given) {
             if ($steamProps.SteamPath) {$steamRoots+=([string]$steamProps.SteamPath).Replace("/","\")}
         } catch {}
         $steamRoots+=@(
-            "$env:ProgramFiles(x86)\Steam",
+            "${env:ProgramFiles(x86)}\Steam",
             "$env:ProgramFiles\Steam",
             "C:\Steam", "D:\Steam", "C:\SteamLibrary", "D:\SteamLibrary",
             "E:\SteamLibrary", "F:\SteamLibrary", "G:\SteamLibrary"
