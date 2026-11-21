@@ -9,3 +9,5 @@ Automated Windows safety and installer build success on:
 https://github.com/ximisch/EssieuPilot/actions/runs/44904121104
 https://github.com/ximisch/EssieuPilot/actions/runs/44904162148
 No claim that physical wheel steering or Convoi synchronizes in ATS. Solo only.
+
+CI release trigger corrected branch path; rerun after Windows installer safety tests passed.
