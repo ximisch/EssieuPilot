@@ -25,3 +25,10 @@ Le prototype issu de TS Extra pilote **une unité de remorque** et non chacun de
 5. **Convoi** : non validé, à ne jamais annoncer comme compatible.
 
 **Ne pas fournir ce prototype à l'utilisateur comme version complète.** Le travail peut continuer dans cette branche sans changer la release officielle.
+
+
+## Validation complémentaire (Original.7)
+
+Avant toute diffusion de la DLL dans l'installateur EssieuPilot, la compilation Windows du projet TS Extra modifié, le protocole IPC et la compatibilité des interfaces doivent être contrôlés. Une compilation réussie NE valide PAS les offsets du moteur de physique ATS 1.62, l'index de vtable 73, le bon comportement des essieux ni la stabilité du jeu.
+
+Critères incontournables pour le passage à un test physique : ATS 1.62 exact, fonctionnement en solo, sauvegarde des dossiers du jeu, désactivation de la commande lorsque le mode manuel est INACTIF, délai d'expiration IPC 250 ms, contrôle du mouvement visible, possibilité de revenir en arrière. Tant que les offsets ne sont pas vérifiés sur l'exécutable de cette version, ne pas embarquer automatiquement la DLL expérimentale.
