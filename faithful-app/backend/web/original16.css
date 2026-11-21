@@ -1,0 +1,184 @@
+/* EssieuPilot Original.16 — official visual skin, all navigation in one window.
+   Original controls and game integration stay intact; no speculative physics. */
+:root{--ep16:#22f5dd;--ep16-line:#0d9c96;--ep16-shadow:0 0 16px #00d2c232}
+html,body{height:100%;overflow:hidden;color:#ecffff}
+body.original16 .app{height:100vh;min-height:0;overflow:hidden;display:flex;background:linear-gradient(110deg,#04121d,#061827 74%,#06202b)}
+body.original16 .sidebar.modern-sidebar{height:100vh;position:sticky;top:0;overflow-y:auto;overscroll-behavior:contain;flex:0 0 252px;min-width:252px;width:252px;z-index:5;padding-bottom:15px;scrollbar-color:#155e67 transparent;background:linear-gradient(165deg,#03121d,#071c29 55%,#051520);border-right:1px solid #0f6163;box-shadow:inset -1px 0 1px #00cdbc24}
+body.original16 .main.modern-main{height:100vh;flex:1;min-width:0;width:calc(100% - 252px);max-width:none;overflow-y:auto;overscroll-behavior:contain;padding:20px clamp(18px,2vw,35px) 30px;scrollbar-color:#16666f transparent;background:radial-gradient(circle at 66% 18%,#08374340,transparent 55%),linear-gradient(118deg,#051421,#071d2a)}
+body.original16 .modern-page{max-width:none;width:100%;gap:14px}
+body.original16 .modern-sidebar .identity{padding:20px 18px 11px}
+body.original16 .modern-sidebar .identity strong{font-size:24px;font-style:italic}
+body.original16 .modern-sidebar .version{background:none;border:0;padding:10px 19px 6px;font-weight:850;font-size:11px;letter-spacing:.12em;color:#e7fffc}
+body.original16 .studio-nav{margin:10px 12px 25px;gap:6px}
+body.original16 .studio-nav .modern-nav-item{padding:10px 9px;border:1px solid #13536360;border-radius:11px;background:linear-gradient(90deg,#06212b,#071926);min-height:54px;gap:10px}
+body.original16 .studio-nav .modern-nav-item strong{color:#eaffff;font-size:13px}
+body.original16 .studio-nav .modern-nav-item small{font-size:10px}
+body.original16 .studio-nav .modern-nav-item:hover{border-color:#28d7ca}
+body.original16 .studio-nav .modern-nav-item.active{background:linear-gradient(110deg,#006f6c91,#062d36);border-color:#20f5da;box-shadow:inset 4px 0 var(--ep16),0 0 15px #02ebce2c}
+body.original16 .studio-nav .modern-nav-icon{background:#03495544;color:var(--ep16);border:1px solid #126d71;font-size:24px}
+body.original16 .ep16-legacy-hidden{display:none!important}
+body.original16 .main.modern-main>.topbar{display:none!important}
+body.original16 .main.modern-main>.notice{display:none!important}
+body.original16 .modern-section-intro{margin:0 0 7px;padding:0 2px}
+body.original16 .modern-section-intro h2{font-size:clamp(25px,2.2vw,37px);font-weight:800;text-shadow:0 0 14px #08cabb29}
+body.original16 .modern-kicker{color:#22e9d3}
+body.original16 .modern-page .panel,body.original16 .modern-3d-panel,body.original16 .modern-panel-inner,body.original16 .essieupilot-utility-panel{
+ background:linear-gradient(155deg,#071d2bd9,#031421ef);border:1px solid #0c8788;border-radius:14px;box-shadow:0 10px 26px #000a125e}
+body.original16 .modern-page .panel:hover{border-color:#26c8bd}
+body.original16 button{cursor:pointer}
+body.original16 .btn-primary,body.original16 .ep16-primary{background:linear-gradient(115deg,#00d0a9,#37f8d2);color:#002722;border:1px solid #50f5da;font-weight:800;box-shadow:0 0 20px #00cba53d}
+
+/* 1. Home: the selected user screenshot is the visual reference. */
+body.original16 .modern-page[data-page=dashboard]{display:block}
+body.original16 .modern-page[data-page=dashboard][hidden]{display:none}
+body.original16 .ep16-home{display:grid;gap:14px;width:100%;max-width:1700px;margin:0 auto}
+body.original16 .ep16-home-hero{height:clamp(200px,31vh,338px);position:relative;overflow:hidden;border-radius:13px;background:#071b27;border:1px solid #167c79;box-shadow:0 8px 38px #00d2cf24}
+body.original16 .ep16-home-hero-image{width:100%;height:100%;object-fit:cover;object-position:center 60%;display:block;filter:saturate(1.12) contrast(1.1)}
+body.original16 .ep16-home-shade{position:absolute;inset:0;background:linear-gradient(0deg,#03142166,transparent 52%),linear-gradient(90deg,#03121bd9,#0515217a 45%,#04142052 68%,#03131b99)}
+body.original16 .ep16-hero-brand{position:absolute;top:clamp(17px,3vh,35px);left:4%;text-shadow:0 4px 20px #000;display:grid;gap:6px;max-width:70%}
+body.original16 .ep16-hero-logo{font-weight:950;font-style:italic;letter-spacing:-.065em;font-size:clamp(40px,5vw,92px);line-height:1;color:white}
+body.original16 .ep16-hero-logo span{color:#1ff1e1}
+body.original16 .ep16-hero-brand small{font-size:clamp(9px,.9vw,14px);letter-spacing:.24em;font-weight:650;color:#ceffff}
+body.original16 .ep16-hero-statuses{position:absolute;right:2%;top:16px;display:grid;gap:10px;min-width:230px;max-width:300px}
+body.original16 .ep16-led{display:flex;gap:12px;align-items:center;padding:11px 14px;border-radius:11px;background:#041f23eb;border:1px solid #266c6c;box-shadow:0 4px 18px #00121b8c;color:#dcfff8}
+body.original16 .ep16-led i{width:15px;height:15px;flex:0 0 15px;border-radius:100%;background:#f2b86a;box-shadow:0 0 13px #f2b86a}
+body.original16 .ep16-led.on{border-color:#20e79f;background:#053826ec}
+body.original16 .ep16-led.on i{background:#29f371;box-shadow:0 0 15px #29f371}
+body.original16 .ep16-led.off{border-color:#af6555;background:#3f2625e8}
+body.original16 .ep16-led.off i{background:#ff8b63;box-shadow:0 0 12px #ff8b63}
+body.original16 .ep16-led b{display:block;font-size:13px}
+body.original16 .ep16-led small{display:block;font-size:10px;margin-top:3px;color:#a8d2ce}
+body.original16 .ep16-home-menu{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+body.original16 .ep16-menu-card{min-width:0;min-height:92px;display:flex;align-items:center;gap:15px;padding:16px 20px;text-align:left;color:#f6ffff;border-radius:11px;border:1px solid #176e71;background:linear-gradient(130deg,#06343ea8,#061824ed),linear-gradient(105deg,#0e3549,#061320);transition:.15s}
+body.original16 .ep16-menu-card:hover,body.original16 .ep16-menu-card:focus-visible{border-color:#1ff6dd;box-shadow:var(--ep16-shadow);transform:translateY(-1px)}
+body.original16 .ep16-card-icon{font-size:36px;color:var(--ep16);line-height:1;min-width:42px;text-shadow:0 0 18px #00dbc777}
+body.original16 .ep16-menu-card strong{font-size:19px;display:block;font-weight:800}
+body.original16 .ep16-menu-card small{display:block;font-size:12px;color:#b1d2d6;margin-top:4px}
+body.original16 .ep16-card-chevron{margin-left:auto;font-size:29px;color:#5bcfca}
+body.original16 .ep16-home-bottom{display:grid;grid-template-columns:minmax(225px,1fr) minmax(450px,2fr);gap:12px}
+body.original16 .ep16-home-bottom>div{min-width:0;padding:16px 20px;border:1px solid #145965;border-radius:11px;background:linear-gradient(140deg,#051b28,#0625339c)}
+body.original16 .ep16-home h3{font-size:14px;letter-spacing:.05em;margin:0 0 10px;color:#dffcfb}
+body.original16 .ep16-home-stats p{display:flex;justify-content:space-between;border-top:1px solid #174552;color:#aacbd0;font-size:12px;margin:0;padding:6px 2px}
+body.original16 .ep16-home-stats p strong{font-size:14px;color:var(--ep16)}
+body.original16 .ep16-home-buttons{display:grid;grid-template-columns:1.3fr repeat(3,minmax(90px,1fr));gap:10px}
+body.original16 .ep16-home-buttons button{background:#062331;border:1px solid #167a7e;border-radius:9px;color:#eafffe;padding:11px 8px;font-weight:750;font-size:13px;min-height:50px}
+body.original16 .ep16-home-buttons button.ep16-primary{color:#002722;background:linear-gradient(110deg,#11dbb5,#42f1d0)}
+body.original16 .ep16-home-buttons button:hover{border-color:#4bf8e3;box-shadow:var(--ep16-shadow)}
+body.original16 .ep16-home-actions small{display:block;font-size:10px;color:#759f9e;margin-top:10px}
+body.original16 .ep16-home-footer{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:11px 18px;border:1px solid #126c70;border-radius:10px;color:#a5c8ce;background:#061926bd;font-size:11px}
+body.original16 .ep16-home-footer span:first-child{color:#aaffed;font-weight:900}
+
+/* 2. Single trailer workspace: profiles, full axle editor and physical controls. */
+body.original16 .ep16-trailer-shell{grid-column:1/-1;display:grid;grid-template-columns:minmax(240px,3fr) minmax(0,9fr);gap:14px;align-items:start}
+body.original16 .ep16-trailer-left,body.original16 .ep16-trailer-right{min-width:0;display:grid;gap:14px}
+body.original16 .ep16-panel{border:1px solid #166a70;background:linear-gradient(135deg,#082937,#051723);border-radius:14px;padding:18px;min-width:0}
+body.original16 .ep16-panel h3{font-size:18px;font-weight:850;letter-spacing:-.02em;margin:0 0 10px;color:#eafffa}
+body.original16 .ep16-panel p{font-size:12px;color:#a7c8d0;line-height:1.6}
+body.original16 .ep16-panel-title{display:flex;align-items:center;justify-content:space-between;gap:8px}
+body.original16 .ep16-panel-title span{color:#57daca;font-size:11px}
+body.original16 .ep16-trailer-left .side-section{display:block;min-height:0;padding:16px;border:1px solid #126568;border-radius:14px;margin:0;background:#082b36}
+body.original16 .ep16-trailer-left .side-section .side-title{color:#dffffa;font-size:14px;padding:0 0 10px}
+body.original16 .ep16-trailer-left #profiles{max-height:40vh;overflow:auto}
+body.original16 .ep16-trailer-left .profile{color:#e2f6f8;background:#061d2b;width:100%;margin-bottom:6px}
+body.original16 .ep16-trailer-left .profile.active{background:#08524b;border-color:var(--ep16)}
+body.original16 .ep16-trailer-left .side-actions button{border:1px solid #14787c;color:#d9f9f9;background:#062633}
+body.original16 .ep16-presets label{display:grid;gap:7px;font-size:12px;color:#b2d1d6;margin:12px 0}
+body.original16 .ep16-presets select,body.original16 .ep16-presets input,body.original16 .ep16-physical-fields input{width:100%;padding:10px;color:#eafffb;border:1px solid #176c70;background:#041924;border-radius:8px;box-sizing:border-box}
+body.original16 .ep16-presets button,body.original16 #ep16SavePhysical{width:100%;margin:6px 0 10px;padding:12px;background:linear-gradient(120deg,#00beab,#2deed0);border:1px solid #5effea;color:#05252a;font-weight:800;border-radius:8px}
+body.original16 .ep16-presets small{font-size:10px;line-height:1.6;color:#c0a37b}
+body.original16 .ep16-trailer-visual{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);align-items:center;gap:18px}
+body.original16 .ep16-trailer-visual img{width:100%;height:150px;object-fit:cover;object-position:center 72%;border-radius:9px;border:1px solid #114b50}
+body.original16 .ep16-trailer-visual strong{display:block;font-size:24px}
+body.original16 .ep16-trailer-visual small{font-size:12px;color:#6fd2d0;line-height:1.6;display:block;margin-top:8px}
+body.original16 .ep16-trailer-right .panel{width:auto;grid-column:auto}
+body.original16 .ep16-trailer-right .panel.axle-panel,body.original16 .ep16-trailer-right .panel.settings{padding:0}
+body.original16 .ep16-physical-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+body.original16 .ep16-physical-fields label{font-size:12px;display:grid;gap:7px;color:#a9e1df}
+body.original16 #ep16PhysicalMessage{display:block;min-height:20px;color:#72dccc;font-size:12px}
+body.original16 .ep16-association-wrap .modern-diagnostic-row{display:block;background:#061d2d;border:1px solid #16616b;border-radius:10px;margin-top:12px;padding:14px}
+body.original16 .ep16-association-wrap .modern-diagnostic-row p{max-width:100%}
+body.original16 .ep16-association-wrap .modern-diagnostic-row select,body.original16 .ep16-association-wrap .modern-diagnostic-row input{max-width:100%;background:#061d2d;color:#dcfffc;border:1px solid #1d7175;border-radius:7px;padding:9px}
+body.original16 .ep16-association-wrap .modern-diagnostic-row button{background:#27debf;color:#06242a;border:1px solid #53ffe0;padding:10px 14px;border-radius:9px;font-weight:850}
+body.original16 .ep16-association-wrap .modern-diagnostic-row label{display:inline-flex;gap:8px;align-items:center;flex-wrap:wrap;margin:8px 8px 5px 0}
+body.original16 .ep16-association-wrap .modern-diagnostic-row input{width:80px}
+body.original16 .ep16-association-wrap .modern-diagnostic-row details{max-width:100%}
+
+/* 3. Commands: preserved bindings and axis calibration in one clean page. */
+body.original16 .modern-page[data-page=inputs] .binding-panel{grid-column:1/span 8;grid-row:auto}
+body.original16 .modern-page[data-page=inputs] .modern-info-panel{grid-column:9/-1;grid-row:auto}
+body.original16 .modern-page[data-page=inputs] .controls{grid-column:9/-1;grid-row:auto;min-width:0}
+body.original16 .modern-page[data-page=inputs] .binding-row{border-color:#1b5059}
+
+/* 4. Simulation with real separate view canvases. */
+body.original16 .ep16-view-switch{grid-column:1/-1;display:flex;gap:10px}
+body.original16 .ep16-view-switch button{flex:1;padding:13px;border:1px solid #147579;border-radius:10px;background:#052431;color:#d6fffb;font-weight:850}
+body.original16 .ep16-view-switch button.active{background:linear-gradient(120deg,#007d7d,#075c5b);border-color:#25f8db;color:#ffffff;box-shadow:var(--ep16-shadow)}
+body.original16 .modern-page[data-page=viewer] .visualize{grid-column:1/-1;min-width:0}
+body.original16 .modern-page[data-page=viewer] .visualize[hidden],body.original16 .modern-page[data-page=viewer] .modern-viewer-layout[hidden]{display:none!important}
+body.original16 .modern-page[data-page=viewer] .modern-viewer-layout{grid-column:1/-1}
+
+/* 5. Diagnostics: only verified state is displayed as OK. */
+body.original16 .ep16-diagnostic-intro{grid-column:1/-1;border:1px solid #188f8a;background:#061f2a;border-radius:14px;padding:18px;display:grid;gap:14px}
+body.original16 .ep16-diagnostic-intro h3{font-size:17px;font-weight:850;margin:0;border-bottom:1px solid #1b6265;padding:3px 0 9px}
+body.original16 .ep16-diagnostic-intro p{margin:0;color:#a9dfdb;font-size:13px}
+body.original16 .ep16-diagnostic-states{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+body.original16 .ep16-diagnostic-states article{padding:13px;background:#031720;border:1px solid #135864;border-radius:9px}
+body.original16 .ep16-diagnostic-states small{display:block;color:#9fbdc6;font-size:10px;letter-spacing:.08em}
+body.original16 .ep16-diagnostic-states strong{display:block;font-size:13px;color:#27e2c3;margin-top:5px}
+body.original16 .ep16-diagnostic-data{display:grid;grid-template-columns:minmax(180px,.9fr) minmax(0,1.5fr);gap:8px 15px;align-items:center;font-size:12px}
+body.original16 .ep16-diagnostic-data span{color:#9abac6;border-bottom:1px solid #18505c;padding-bottom:7px}
+body.original16 .ep16-diagnostic-data b{color:#dffefa;border-bottom:1px solid #18505c;padding-bottom:7px}
+body.original16 .ep16-diagnostic-logs{grid-column:1/-1;display:grid;gap:10px}
+body.original16 .ep16-diagnostic-logs .modern-diagnostic-row{margin-bottom:0;background:#051925;border:1px solid #164d59;border-radius:9px;padding:16px}
+body.original16 .modern-page[data-page=diagnostics] .device-section-moved{grid-column:1/-1;border-color:#135861}
+
+/* 6. Updates: no change to GitHub API or installer flow. */
+body.original16 .ep16-update-panel{max-width:none;padding:22px;gap:18px;grid-column:1/-1;border-color:#179e92}
+body.original16 .ep16-update-panel .essieupilot-panel-title{border-bottom:1px solid #145b62;padding-bottom:16px}
+body.original16 .ep16-update-panel .essieupilot-utility-grid .essieupilot-metric{border-color:#166a71}
+body.original16 .ep16-update-panel button{display:inline-flex;justify-content:center;min-width:170px}
+body.original16 .ep16-update-panel .essieupilot-list{grid-template-columns:repeat(2,minmax(0,1fr));gap:15px}
+body.original16 .ep16-update-panel .essieupilot-list>b{grid-column:1/-1}
+body.original16 .ep16-update-panel .essieupilot-list div{border:1px solid #145c68;padding:16px;border-radius:9px;background:#051c29}
+
+/* 7. About: moved ATS instructions and real, qualified compatibility status. */
+body.original16 .modern-page[data-page=about] .essieupilot-utility-panel{grid-column:1/-1}
+body.original16 .modern-page[data-page=about] .about-panel{display:none}
+body.original16 .ep16-ats-help{grid-column:1/-1}
+
+/* Screen-size safeguards: menu remains anchored; only inner content scrolls. */
+@media(min-width:1400px) and (min-height:830px){
+ body.original16 .modern-page[data-page=dashboard] .ep16-home{gap:12px}
+ body.original16 .ep16-home-menu .ep16-menu-card{min-height:80px;padding:12px 16px}
+ body.original16 .ep16-home-hero{height:clamp(240px,30vh,330px)}
+ body.original16 .ep16-home-bottom>div{padding:12px 17px}
+}
+@media(max-width:1250px){
+ body.original16 .sidebar.modern-sidebar{flex-basis:222px;width:222px;min-width:222px}
+ body.original16 .main.modern-main{width:calc(100% - 222px)}
+ body.original16 .ep16-home-menu{grid-template-columns:repeat(2,minmax(0,1fr))}
+ body.original16 .ep16-home-buttons{grid-template-columns:repeat(2,minmax(0,1fr))}
+ body.original16 .ep16-home-bottom{grid-template-columns:1fr}
+ body.original16 .ep16-trailer-shell{grid-template-columns:1fr}
+ body.original16 .modern-page[data-page=inputs] .binding-panel,
+ body.original16 .modern-page[data-page=inputs] .modern-info-panel,
+ body.original16 .modern-page[data-page=inputs] .controls{grid-column:1/-1}
+}
+@media(max-width:830px){
+ body.original16 .app{height:100dvh}
+ body.original16 .sidebar.modern-sidebar{flex-basis:76px;min-width:76px;width:76px}
+ body.original16 .sidebar .identity>div:not(.brand-mark),
+ body.original16 .sidebar .version,
+ body.original16 .modern-nav-item>span:not(.modern-nav-icon){display:none}
+ body.original16 .studio-nav{margin:12px 7px;gap:9px}
+ body.original16 .studio-nav .modern-nav-item{padding:7px;justify-content:center}
+ body.original16 .main.modern-main{width:calc(100% - 76px);padding:12px}
+ body.original16 .ep16-home-hero{height:240px}
+ body.original16 .ep16-hero-logo{font-size:36px}
+ body.original16 .ep16-hero-statuses{top:auto;bottom:10px;right:10px;min-width:170px}
+ body.original16 .ep16-led{padding:7px}
+ body.original16 .ep16-home-menu{grid-template-columns:1fr}
+ body.original16 .ep16-diagnostic-states{grid-template-columns:repeat(2,1fr)}
+ body.original16 .ep16-physical-fields{grid-template-columns:1fr}
+}
+@media(prefers-reduced-motion:reduce){body.original16 *{animation-duration:.01ms!important;transition-duration:.01ms!important}}
