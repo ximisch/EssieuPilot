@@ -100,9 +100,9 @@
     selectionRow.className='modern-diagnostic-row';
     const selectionDetails=document.createElement('div');
     const selectionHeading=document.createElement('b');
-    selectionHeading.textContent='Original.13 · Choisir la configuration de la remorque attelée (test SOLO)';
+    selectionHeading.textContent='Original.14 · Association automatique des remorques et calibrage (SOLO)';
     const selectionHelp=document.createElement('p');
-    selectionHelp.textContent='Chaque profil peut contenir plusieurs remorques. Sélectionne ici celle correspondant à la remorque actuellement attelée dans ATS. Cette association conserve les autres réglages. La DLL physique actuelle ne pilote qu’un angle global par remorque ; les angles d’essieux divergents ne sont pas encore pris en charge physiquement.';
+    selectionHelp.textContent='Attelle une remorque dans ATS puis associe-la une seule fois à sa configuration. À chaque changement de remorque, EssieuPilot recherche son identifiant ATS exact et recharge automatiquement le réglage associé. En cas d’identifiant inconnu ou partagé par plusieurs configurations, aucune sélection automatique risquée. Les essieux indépendants restent sauvegardés, mais la DLL ne reçoit actuellement qu’un angle global par remorque.';
     const selectionChoice=document.createElement('select');
     selectionChoice.id='epPhysicalTrailerChoice';
     selectionChoice.setAttribute('aria-label','Configuration de remorque à utiliser pour l’essai physique');
@@ -110,10 +110,22 @@
     const selectionButton=document.createElement('button');
     selectionButton.type='button';
     selectionButton.className='btn btn-primary';
-    selectionButton.textContent='Utiliser cette configuration pour ATS';
+    selectionButton.textContent='Associer la remorque ATS à cette configuration';
+    const calibrationLabel=document.createElement('label');
+    calibrationLabel.textContent='Référence physique (° pour 100 % ATS, non mesurée) : ';
+    calibrationLabel.style.marginLeft='8px';
+    const calibrationInput=document.createElement('input');
+    calibrationInput.type='number';
+    calibrationInput.min='35';calibrationInput.max='120';calibrationInput.step='1';
+    calibrationInput.value='60';
+    calibrationInput.id='epPhysicalCalibrationReference';
+    calibrationInput.style.width='72px';
+    calibrationLabel.appendChild(calibrationInput);
+    const calibrationHelp=document.createElement('p');
+    calibrationHelp.textContent='Par défaut 60° = 100 % ATS. Exemple : limite 15° → 25 % ATS ; limite 35° → 58,3 %. Ces pourcentages sont une approximation, pas une mesure des angles des roues. Pour calibrer plus précisément, ajuste la référence après des essais visuels.';
     const selectionNotice=document.createElement('p');
     selectionNotice.id='epPhysicalTrailerChoiceStatus';
-    selectionDetails.append(selectionHeading,selectionHelp,selectionChoice,selectionButton,selectionNotice);
+    selectionDetails.append(selectionHeading,selectionHelp,selectionChoice,calibrationLabel,calibrationHelp,selectionButton,selectionNotice);
     selectionRow.appendChild(selectionDetails);
     diag.appendChild(selectionRow);
     async function refreshSelection(){
@@ -145,13 +157,43 @@
         }
         if(!selectionChoice.dataset.chosen){
           selectionChoice.value=p.physical_selected_trailer_id||'';
-          selectionNotice.textContent=p.physical_selected_trailer_id?
-            'Configuration enregistrée : '+(options.find(t=>t.id===p.physical_selected_trailer_id)?.name||'sélection indisponible'):
-            (options.length===1?'Une seule configuration : sélection automatique par défaut.':'Plusieurs configurations : sélection explicite requise avant un essai physique.');
+          const selected=options.find(t=>t.id===selectionChoice.value)||options[0];
+          if(document.activeElement!==calibrationInput) {
+            calibrationInput.value=String(selected?.physical_full_scale_degrees||60);
+          }
+          const telemetryResponse=await fetch('/api/telemetry',{cache:'no-store'});
+          let observed=null;
+          if(telemetryResponse.ok) {
+            const telemetry=await telemetryResponse.json();
+            if(telemetry.connected && Array.isArray(telemetry.trailers) &&
+                telemetry.trailers.length===1 && telemetry.trailers[0]?.id) {
+              observed=telemetry.trailers[0].id;
+            }
+          }
+          const matches=observed?options.filter(t=>String(t.ats_match_key||'').toLowerCase()===observed.toLowerCase()):[];
+          if(observed && matches.length===1){
+            selectionNotice.textContent='ATS : '+observed+' → reconnaissance automatique : '+matches[0].name;
+            selectionChoice.value=matches[0].id;
+          }else if(observed && matches.length>1){
+            selectionNotice.textContent='Identifiant ATS partagé par plusieurs configurations : association ambiguë, essai physique bloqué.';
+          }else if(observed){
+            selectionNotice.textContent='ATS détecte : '+observed+'. Choisis une configuration puis clique Associer.';
+          }else{
+            selectionNotice.textContent='Attelle une remorque et lance ATS pour enregistrer son identifiant. Sélection manuelle toujours possible.';
+          }
         }
       }catch(e){selectionNotice.textContent='Configuration indisponible : '+e.message}
     }
-    selectionChoice.addEventListener('change',()=>{selectionChoice.dataset.chosen='1';});
+    selectionChoice.addEventListener('change',async()=>{
+      selectionChoice.dataset.chosen='1';
+      try{
+        const response=await fetch('/api/config',{cache:'no-store'});
+        const config=await response.json();
+        const p=config.profiles?.find(x=>x.id===config.active_id);
+        const selected=p?.trailers?.find(t=>t.id===selectionChoice.value);
+        if(selected)calibrationInput.value=String(selected.physical_full_scale_degrees||60);
+      }catch(_){}
+    });
     selectionButton.addEventListener('click',async()=>{
       if(selectionChoice.dataset.busy==='1')return;
       if(!selectionChoice.value){selectionNotice.textContent='Choisis une remorque avant de confirmer.';return}
@@ -162,7 +204,26 @@
         const config=await res.json();
         const p=config.profiles.find(x=>x.id===config.active_id);
         if(!p||!p.trailers?.some(x=>x.id===selectionChoice.value))throw new Error('Configuration modifiée : actualise la page');
-        p.physical_selected_trailer_id=selectionChoice.value;
+        const chosen=p.trailers.find(t=>t.id===selectionChoice.value);
+        const calibration=Number(calibrationInput.value);
+        const configuredMax=Math.max(0,...chosen.axles.filter(x=>x.enabled).map(x=>Number(x.max_angle)||0));
+        if(!Number.isFinite(calibration)||calibration<35||calibration>120||calibration<configuredMax){
+          throw new Error('Référence de calibrage invalide (35° à 120°, et au moins autant que l’angle maximal configuré).');
+        }
+        const observedRes=await fetch('/api/telemetry',{cache:'no-store'});
+        let observedID='';
+        if(observedRes.ok){
+          const t=await observedRes.json();
+          if(t.connected && Array.isArray(t.trailers) && t.trailers.length===1)
+            observedID=String(t.trailers[0].id||'').trim();
+        }
+        if(!observedID)throw new Error('Aucune remorque identifiée dans ATS : démarre le jeu avec une remorque attelée avant de créer l’association automatique.');
+        const collision=p.trailers.find(t=>t.id!==chosen.id &&
+          String(t.ats_match_key||'').toLowerCase()===observedID.toLowerCase());
+        if(collision)throw new Error('Identifiant ATS déjà associé à « '+collision.name+' ». Il faut d’abord corriger cette association pour éviter un conflit.');
+        chosen.ats_match_key=observedID;
+        chosen.physical_full_scale_degrees=calibration;
+        p.physical_selected_trailer_id=chosen.id;
         const result=await fetch('/api/config',{
           method:'POST',
           headers:{'Content-Type':'application/json','X-ATS-Token':document.body.dataset.token},
@@ -172,10 +233,17 @@
         // Keep original in-memory app profile in sync for a later user Save.
         if(typeof getProfile==='function'){
           const appProfile=getProfile();
-          if(appProfile?.id===p.id)appProfile.physical_selected_trailer_id=p.physical_selected_trailer_id;
+          if(appProfile?.id===p.id){
+            appProfile.physical_selected_trailer_id=p.physical_selected_trailer_id;
+            const appTrailer=appProfile.trailers?.find(t=>t.id===chosen.id);
+            if(appTrailer){
+              appTrailer.ats_match_key=chosen.ats_match_key;
+              appTrailer.physical_full_scale_degrees=chosen.physical_full_scale_degrees;
+            }
+          }
         }
         selectionChoice.dataset.chosen='';
-        selectionNotice.textContent='Association sauvegardée. Retourne dans ATS SOLO pour tester.';
+        selectionNotice.textContent='Association automatique enregistrée : '+observedID+' → '+chosen.name+'. Calibrage : '+calibration+'°. Essaie maintenant en SOLO.';
       }catch(e){selectionNotice.textContent='Erreur : '+e.message}
       finally {selectionChoice.dataset.busy='';selectionButton.disabled=false;}
     });
@@ -186,12 +254,12 @@
     physicalReportRow.className = 'modern-diagnostic-row';
     const reportText = document.createElement('div');
     const reportHeading = document.createElement('b');
-    reportHeading.textContent = 'Original.13 · Diagnostic automatique du braquage physique';
+    reportHeading.textContent = 'Original.14 · Diagnostic automatique du braquage physique';
     const reportHelp = document.createElement('p');
-    reportHelp.textContent = 'Effectue tes essais avec ATS au premier plan, puis télécharge ici le dernier rapport. Il reste disponible après avoir quitté le jeu. Chemin local : %LOCALAPPDATA%\\EssieuPilot\\ATS-Physical-Test\\diagnostic-original13.json. Aucun braquage réel n’est encore validé.';
+    reportHelp.textContent = 'Effectue tes essais avec ATS au premier plan, puis télécharge ici le dernier rapport. Il reste disponible après avoir quitté le jeu. Chemin local : %LOCALAPPDATA%\\EssieuPilot\\ATS-Physical-Test\\diagnostic-original14.json. Aucun braquage réel n’est encore validé.';
     const reportLink = document.createElement('a');
     reportLink.href = '/api/physical-diagnostic';
-    reportLink.download = 'EssieuPilot_Diagnostic_Physique_Original12.json';
+    reportLink.download = 'EssieuPilot_Diagnostic_Physique_Original14.json';
     reportLink.textContent = 'Télécharger le diagnostic physique (JSON)';
     reportLink.style.textDecoration = 'underline';
     reportLink.style.fontWeight = 'bold';
