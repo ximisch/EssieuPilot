@@ -182,6 +182,7 @@ func newServer(p profileStore) (*server, error) {
 	router.HandleFunc("GET /steering_logic.js", s.static)
 	router.HandleFunc("GET /logo.png", s.static)
 	router.HandleFunc("GET /hero_reference.jpg", s.static)
+	router.HandleFunc("GET /steel-vector-hero.webp", s.static)
 	for i := 0; i < 5; i++ {
 		router.HandleFunc(fmt.Sprintf("GET /feature_%d.jpg", i), s.static)
 	}
@@ -282,6 +283,8 @@ func (s *server) static(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "image/png")
 	case ".jpg":
 		w.Header().Set("Content-Type", "image/jpeg")
+	case ".webp":
+		w.Header().Set("Content-Type", "image/webp")
 	}
 	w.Write(buf)
 }
