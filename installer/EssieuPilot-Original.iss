@@ -86,6 +86,9 @@ Filename: "{app}\EssieuPilot.exe"; Description: "Ouvrir EssieuPilot"; Flags: now
 ; this installer performs first-install/update/rollback for DLL and SCS automatically.
 ; Other plugins and original UI profiles are never changed.
 #if EP_DLL_PAYLOAD != ""
+[UninstallRun]
+; Removal checks ownership and hashes. It never deletes unknown .scs or DLLs.
+Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -NonInteractive -ExecutionPolicy Bypass -File ""{app}\ATS-Plugin\Manage-ATS-Plugins-V2.ps1"" -Action Remove"; Flags: runhidden
 [Code]
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 var ResultCode: Integer;
