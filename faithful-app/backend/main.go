@@ -25,7 +25,7 @@ import (
 //go:embed web/*
 var frontend embed.FS
 
-const technicalVersion = "2.0.0-original.20"
+const technicalVersion = "2.0.0-original.21"
 
 type server struct {
 	telemetry telemetryBridge
@@ -177,6 +177,8 @@ func newServer(p profileStore) (*server, error) {
 	router.HandleFunc("GET /steel-vector.css", s.static)
 	router.HandleFunc("GET /steel-vector.js", s.static)
 	router.HandleFunc("GET /original20-diagnostic.js", s.static)
+	router.HandleFunc("GET /original21-convoy.js", s.static)
+	router.HandleFunc("GET /original21-convoy.css", s.static)
 	router.HandleFunc("GET /original20.css", s.static)
 	router.HandleFunc("GET /app.js", s.static)
 	router.HandleFunc("GET /modern.js", s.static)
@@ -195,6 +197,7 @@ func newServer(p profileStore) (*server, error) {
     router.HandleFunc("GET /api/status", s.getLiveStatus)
     router.HandleFunc("GET /api/control-link", s.getInputLink)
     router.HandleFunc("GET /api/physical-diagnostic", s.getPhysicalDiagnostic)
+	router.HandleFunc("GET /api/convoy-probe", s.getConvoyProbe)
     router.HandleFunc("POST /api/control-link/mode", s.setInputMode)
 	router.HandleFunc("GET /api/ats/installations", s.getATSInstallations)
 	router.HandleFunc("GET /api/updates", s.getOriginalUpdates)
@@ -260,7 +263,7 @@ func (s *server) index(w http.ResponseWriter, r *http.Request) {
 	// The original front end remains intact; only the existing technical version
 	// footer is replaced and a status-poll script is appended.
 	html = strings.ReplaceAll(html, "Version technique 1.6.2", "Version technique "+technicalVersion)
-	html = strings.Replace(html, "</body>", `<script src="/original-live.js" defer></script><script src="/steel-vector.js" defer></script><script src="/original20-diagnostic.js" defer></script></body>`, 1)
+	html = strings.Replace(html, "</body>", `<script src="/original-live.js" defer></script><script src="/steel-vector.js" defer></script><script src="/original20-diagnostic.js" defer></script><script src="/original21-convoy.js" defer></script></body>`, 1)
 	buf = []byte(html)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Write(buf)
