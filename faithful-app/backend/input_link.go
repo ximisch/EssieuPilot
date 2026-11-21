@@ -68,6 +68,8 @@ type inputLinkSnapshot struct {
 	PlannedAngleReason     string  `json:"planned_angle_reason"`
 	ObservedSpeedKMH       float64 `json:"observed_speed_kmh"`
 	ObservedSpeedValid     bool    `json:"observed_speed_valid"`
+	ObservedWheelSteeringValid bool `json:"observed_wheel_steering_valid"`
+	ObservedWheelSteeringDegrees []float64 `json:"observed_wheel_steering_degrees"`
 	DLLConfirmed           bool   `json:"dll_confirmed"`
 	StatusMessage          string `json:"status_message"`
 }
