@@ -1,0 +1,46 @@
+name: EssieuPilot — contrôle de compatibilité physique ATS (R&D, aucune publication)
+
+on:
+  push:
+    branches: ['research/ats162-physical-abi']
+    paths:
+      - 'src/EssieuPilot.ATSInspector/**'
+      - '.github/workflows/ats162-inspector.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspector:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Installer .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Compiler l'analyseur sans hook
+        shell: pwsh
+        run: |
+          dotnet build src/EssieuPilot.ATSInspector/EssieuPilot.ATSInspector.csproj -c Release
+          if ($LASTEXITCODE -ne 0) { throw 'Compilation échouée' }
+      - name: Tests autonomes
+        shell: pwsh
+        run: |
+          dotnet run --project src/EssieuPilot.ATSInspector/EssieuPilot.ATSInspector.csproj -c Release --no-build -- --self-test
+          if ($LASTEXITCODE -ne 0) { throw 'Tests de signatures échoués' }
+      - name: Générer un exécutable Windows indépendant
+        shell: pwsh
+        run: |
+          dotnet publish src/EssieuPilot.ATSInspector/EssieuPilot.ATSInspector.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o out
+          if ($LASTEXITCODE -ne 0) { throw 'Publication interne échouée' }
+          if (-not (Test-Path 'out/EssieuPilot-ControleATS.exe')) { throw 'Fichier manquant' }
+          Write-Host "SHA-256: $((Get-FileHash out/EssieuPilot-ControleATS.exe -Algorithm SHA256).Hash)"
+      - name: Conserver le diagnostic sans créer de release
+        uses: actions/upload-artifact@v4
+        with:
+          name: EssieuPilot-ControleATS-RD-lecture-seule
+          path: out/EssieuPilot-ControleATS.exe
+          retention-days: 21
+          if-no-files-found: error
