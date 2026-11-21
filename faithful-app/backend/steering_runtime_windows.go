@@ -430,6 +430,7 @@ func startSteeringRuntime(s *server) func() {
 		var observedTelemetry telemetryResult
 		var lastTelemetryAt time.Time
 		var lastDLLProbe physicalProbeReport
+        var lastConvoyProbe convoyProbeReport
 		var lastDLLProbeCheck time.Time
 		var plannedAngle float64
 		var plannedAvailable bool
@@ -475,6 +476,7 @@ func startSteeringRuntime(s *server) func() {
 			now := time.Now()
 			if now.Sub(lastDLLProbeCheck) >= 500*time.Millisecond {
 				lastDLLProbe = readPhysicalDLLProbe()
+                lastConvoyProbe = readConvoyProbe()
 				lastDLLProbeCheck = now
 			}
 			select {
@@ -760,8 +762,12 @@ func startSteeringRuntime(s *server) func() {
 				ActiveProfileMatched: profileMatched,
 				CompatibleAxles: axlesCompatible,
 			}
-			allowed := allowExperimentalPhysics(conditions)
+			allowed := allowExperimentalPhysics(conditions) && !lastConvoyProbe.MultiplayerEvidence
 			reasons := physicalGateReasons(conditions,bridge != nil,snapshot.PlannedAngleValid)
+            if lastConvoyProbe.MultiplayerEvidence {
+                reasons = append(reasons,"CONVOI_MULTIPLAYER_INDICE_PHYSIQUE_SUSPENDU")
+                snapshot.StatusMessage = "Convoi : indice multijoueur observé ; braquage expérimental suspendu"
+            }
 			if !selected {reasons=append(reasons,associationMode)}
 			if selected && !axlesCompatible {reasons=append(reasons,"ESSIEUX_OU_LIMITE_PHYSIQUE_INCOMPATIBLES")}
 			if bridge != nil && allowed && snapshot.PlannedAngleValid {
