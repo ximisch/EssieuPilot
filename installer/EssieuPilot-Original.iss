@@ -51,10 +51,14 @@ OutputDir={#EP_OUT_DIR}
 OutputBaseFilename=Installer_EssieuPilot
 Compression=lzma2
 SolidCompression=yes
-#if EP_DLL_PAYLOAD != "" || EP_RND_DLL_PAYLOAD != ""
+#if EP_DLL_PAYLOAD != ""
 PrivilegesRequired=admin
 #else
+  #if EP_RND_DLL_PAYLOAD != ""
+PrivilegesRequired=admin
+  #else
 PrivilegesRequired=lowest
+  #endif
 #endif
 WizardStyle=modern
 CloseApplications=yes
