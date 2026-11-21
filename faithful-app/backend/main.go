@@ -176,6 +176,8 @@ func newServer(p profileStore) (*server, error) {
 	router.HandleFunc("GET /modern.css", s.static)
 	router.HandleFunc("GET /original16.css", s.static)
 	router.HandleFunc("GET /original17.css", s.static)
+	router.HandleFunc("GET /original18.css", s.static)
+	router.HandleFunc("GET /original18.js", s.static)
 	router.HandleFunc("GET /app.js", s.static)
 	router.HandleFunc("GET /modern.js", s.static)
 	router.HandleFunc("GET /original16-ui.js", s.static)
