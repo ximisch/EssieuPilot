@@ -185,3 +185,47 @@ body.original16 .ep16-trailer-left .side-actions .ep17-delete-profile{flex:1 0 1
  body.original16 .ep16-led{min-height:40px;padding:6px!important}
  body.original16 .ep16-home-menu{grid-template-columns:1fr!important}
 }
+
+
+/* Visual QA fixes from actual Microsoft Edge 1366x900 screenshot. */
+/* Original reference title and old status are baked in the decorative photo;
+   mask the upper half and replace them with real typography/status controls. */
+body.original16 .ep16-home-hero-image{
+ mask-image:linear-gradient(to bottom,transparent 0%,transparent 48%,#0008 57%,#000 69%,#000 100%)!important;
+ filter:brightness(1.2) contrast(1.07) saturate(1.25);
+}
+body.original16 .ep16-hero-brand:before{
+ content:''!important;display:block!important;
+ width:76px;height:43px;
+ background:url('/logo.png') center/contain no-repeat;
+ filter:drop-shadow(0 0 11px #07eeee)!important;
+ margin-bottom:-1px;
+}
+body.original16 .ep16-home-shade{
+ background:linear-gradient(to bottom,#031722f5 0%,#031722ca 35%,#02172240 65%,#02172236 100%)!important;
+}
+body.original16 .ep16-menu-card:nth-child(1){
+ background-image:linear-gradient(95deg,#042534 0%,#042534 54%,#042534e9 72%,#04253449 100%),url('/feature_1.jpg')!important;
+}
+body.original16 .ep16-menu-card:nth-child(2){
+ background-image:linear-gradient(95deg,#042534 0%,#042534 54%,#042534e9 72%,#04253449 100%),url('/feature_4.jpg')!important;
+}
+body.original16 .ep16-menu-card:nth-child(3){
+ background-image:linear-gradient(95deg,#042534 0%,#042534 54%,#042534e9 72%,#04253449 100%),url('/feature_2.jpg')!important;
+}
+body.original16 .ep16-menu-card:nth-child(4){
+ background-image:linear-gradient(95deg,#042534 0%,#042534 54%,#042534e9 72%,#04253449 100%),url('/feature_3.jpg')!important;
+}
+body.original16 .ep16-menu-card:nth-child(5){
+ background-image:linear-gradient(95deg,#042534 0%,#042534 54%,#042534e9 72%,#04253449 100%),url('/feature_0.jpg')!important;
+}
+@media(min-width:1000px) and (min-height:800px){
+ body.original16[data-active-tab=dashboard] .ep16-home{
+  grid-template-rows:41.5vh 23.5vh 17.5vh 48px!important;
+  align-content:space-between!important;
+  gap:11px!important;
+ }
+ body.original16 .ep16-home-menu{min-height:0!important;grid-template-rows:repeat(2,minmax(82px,1fr))!important}
+ body.original16 .ep16-home-bottom{min-height:0!important}
+ body.original16 .ep16-home-footer{margin-bottom:9px!important}
+}
