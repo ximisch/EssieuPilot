@@ -34,6 +34,8 @@ type telemetryResult struct {
 	Source          string            `json:"source"`
 	Note            string            `json:"note"`
 	PhysicalControl bool              `json:"physical_control"`
+	WheelSteeringDegrees []float64   `json:"wheel_steering_degrees"`
+	WheelSteeringValid   bool        `json:"wheel_steering_valid"`
 }
 
 type detectedTrailer struct {
@@ -57,8 +59,11 @@ type hubSnapshot struct {
 	Data struct {
 		SpeedMPS float64 `json:"speed_mps"`
 		Paused   bool    `json:"game_paused"`
-		Trailer  struct {
+		Trailer struct {
 			Connected bool `json:"connected"`
+			Wheels []struct {
+				Steering float64 `json:"steering"`
+			} `json:"wheels"`
 		} `json:"trailer"`
 	} `json:"data"`
 	TrailerSpec struct {
@@ -181,6 +186,27 @@ func (b telemetryBridge) read() telemetryResult {
 		source = "estimation via position des roues"
 	}
 	out.Trailers = append(out.Trailers, detectedTrailer{ID: id, Name: name, Type: bodyType, EstimatedAxles: axles, AxleCountSource: source, SteerableAxlesKnown: false})
+	// The hub reports trailer.wheel.steering in rotations, not degrees.
+	// Compare these independent, read-only SDK measurements with the
+	// requested command in R&D; zero readings or an SDK value cannot
+	// prove that the wheel model visibly animated.
+	wheels := s.Data.Trailer.Wheels
+	if len(wheels) > 0 && len(wheels) <= 20 && len(s.TrailerSpec.WheelPositions) > 0 {
+		angles := make([]float64,0,len(wheels))
+		valid := true
+		for _,wheel := range wheels {
+			if math.IsNaN(wheel.Steering) || math.IsInf(wheel.Steering,0) ||
+				math.Abs(wheel.Steering) > 0.25 {
+				valid = false
+				break
+			}
+			angles = append(angles,math.Round(wheel.Steering*36000)/100)
+		}
+		if valid {
+			out.WheelSteeringDegrees = angles
+			out.WheelSteeringValid = true
+		}
+	}
 	return out
 }
 
