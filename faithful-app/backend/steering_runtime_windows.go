@@ -318,6 +318,9 @@ func startSteeringRuntime(s *server) func() {
 	// send an experimental steering command. Never enable in release builds
 	// before ATS binary offsets and actual wheel movement are verified.
 	physicalResearchOptIn := physicalResearchBuildMode == "true" && physicalTestConsent()
+	// Original.12 records the last IN-GAME gate result. Focus loss must never
+	// overwrite evidence captured while controls were active in ATS.
+	diagnostic := newPhysicalDiagnosticRecorder()
 	bridge, bridgeErr := newPhysicalSteeringBridge()
 	if bridgeErr != nil {
 		log.Printf("EssieuPilot IPC preparation unavailable: %v", bridgeErr)
@@ -387,6 +390,10 @@ func startSteeringRuntime(s *server) func() {
 			case <-ctx.Done():
 				if bridge != nil {
 					_ = bridge.publish(false, 0, 0)
+				}
+				if diagnostic != nil && diagnostic.gameWasRunning {
+					diagnostic.report.LastGameStopped=time.Now().UTC().Format(time.RFC3339)
+					diagnostic.flush(time.Now())
 				}
 				publishInputLinkSnapshot(inputLinkSnapshot{})
 				return
@@ -485,9 +492,9 @@ func startSteeringRuntime(s *server) func() {
 				PhysicalDLLSDKAccepted: gameRunning && lastDLLProbe.Recognized,
 				PhysicalDLLGameVersion: lastDLLProbe.GameVersion,
 				PhysicalDLLProbeMessage: lastDLLProbe.Reason,
-				PhysicalValidationStatus: "Original.10 R&D : DLL ATS 1.62.2.2 détectable ; mouvement physique et Convoi non validés.",
+				PhysicalValidationStatus: "Original.12 R&D : le dernier essai EN JEU est enregistré dans Diagnostic ; physique et Convoi non validés.",
 				DLLConfirmed:           false,
-				StatusMessage: "Original.10 essai : DLL physique en expérimentation, solo seulement, aucun mouvement garanti.",
+				StatusMessage: "Original.12 essai : diagnostic physique sauvegardé pendant ATS au premier plan ; aucune direction réelle garantie.",
 			}
 			if !foreground {
 				// ATS lost focus: do not read input from another application.
@@ -643,7 +650,7 @@ func startSteeringRuntime(s *server) func() {
 			if axlesCompatible {
 				physicalAxle, axlesCompatible = trailerCompatible(active.Trailers[0])
 			}
-			allowed := allowExperimentalPhysics(experimentalPhysicalConditions{
+			conditions := experimentalPhysicalConditions{
 				ExplicitResearchOptIn: physicalResearchOptIn,
 				InputAuthorized: steeringInstructionAllowed(manual, gameRunning, foreground, found),
 				DLLSDKProbeRecognized: lastDLLProbe.Recognized && lastDLLProbe.Loaded,
@@ -651,7 +658,9 @@ func startSteeringRuntime(s *server) func() {
 				OneAttachedTrailer: oneTrailer,
 				ActiveProfileMatched: profileMatched,
 				CompatibleAxles: axlesCompatible,
-			})
+			}
+			allowed := allowExperimentalPhysics(conditions)
+			reasons := physicalGateReasons(conditions,bridge != nil,snapshot.PlannedAngleValid)
 			if bridge != nil && allowed && snapshot.PlannedAngleValid {
 				if normalized, ok := normalizedPhysicalAngle(plannedAngle, physicalAxle.MaxAngle); ok {
 					if err := bridge.publish(true, 0, normalized); err == nil {
@@ -670,7 +679,10 @@ func startSteeringRuntime(s *server) func() {
 						}
 					} else {
 						snapshot.StatusMessage = "Échec d'envoi physique expérimental : " + err.Error()
+						reasons=append(reasons,"ERREUR_ECRITURE_IPC")
 					}
+				} else {
+					reasons=append(reasons,"ANGLE_PHYSIQUE_NON_NORMALISABLE")
 				}
 			}
 			if bridge != nil && !emitted {
@@ -680,6 +692,11 @@ func startSteeringRuntime(s *server) func() {
 					snapshot.IPCReady = false
 					snapshot.StatusMessage = "Canal IPC indisponible : " + err.Error()
 				}
+			}
+			// Persist the reason while ATS has focus, before Alt+Tab or game exit.
+			// Recorded ACK is callback evidence only; never imply wheel motion.
+			if diagnostic != nil {
+				diagnostic.observe(now,snapshot,conditions,reasons,len(observedTelemetry.Trailers))
 			}
 			publishInputLinkSnapshot(snapshot)
 		}
