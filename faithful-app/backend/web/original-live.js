@@ -94,9 +94,68 @@
   // Stage 1 is displayed in the existing Diagnostic tab, not a new Pilotage tab.
   const diag = document.querySelector('.modern-diagnostic');
   if (diag) {
+    // Original.9 : identifie la remorque depuis la télémétrie SCS,
+    // puis retrouve le profil associé sans piloter ni modifier le jeu.
+    const autoRow = document.createElement('div');
+    autoRow.className = 'modern-diagnostic-row';
+    autoRow.innerHTML = '<div><b>Remorque et profil reconnus automatiquement (Original.9)</b>' +
+      '<p id="epTrailerDetectionText">Vérification de la télémétrie ATS…</p></div>' +
+      '<span id="epTrailerDetectionBadge" class="modern-pending-status">LECTURE</span>';
+    diag.appendChild(autoRow);
+    let detectingTrailer = false;
+    async function refreshTrailerDetection() {
+      if (detectingTrailer) return;
+      detectingTrailer = true;
+      const output = document.getElementById('epTrailerDetectionText');
+      const badge = document.getElementById('epTrailerDetectionBadge');
+      try {
+        const [telemetryRes, profilesRes] = await Promise.all([
+          fetch('/api/telemetry', {cache:'no-store'}),
+          fetch('/api/config', {cache:'no-store'})
+        ]);
+        if (!telemetryRes.ok || !profilesRes.ok) throw new Error('Service de lecture indisponible');
+        const telemetry = await telemetryRes.json();
+        const config = await profilesRes.json();
+        const trailer = telemetry.connected && Array.isArray(telemetry.trailers) ?
+          telemetry.trailers[0] : null;
+        if (!trailer || !trailer.id) {
+          output.textContent = 'Aucune remorque reconnue : ' +
+            (telemetry.note || 'ATS et le SCS Telemetry Hub doivent être actifs.') +
+            ' Aucun braquage physique envoyé.';
+          badge.textContent = 'NON DÉTECTÉE';
+        } else {
+          const id = String(trailer.id).toLowerCase();
+          const profiles = Array.isArray(config.profiles) ? config.profiles : [];
+          const selected = profiles.find(p =>
+            String(p.match_key || '').toLowerCase() === id && String(p.match_key || '') !== '');
+          const fallback = profiles.find(p => p.id === config.active_id &&
+            !String(p.match_key || '').trim());
+          const axleCount = Number(trailer.estimated_axles || 0);
+          const axleDescription = axleCount > 0 ?
+            axleCount + ' essieux estimés (direction non connue)' : 'nombre d’essieux inconnu';
+          const name = String(trailer.name || trailer.id);
+          output.textContent = 'Remorque : ' + name + ' (' + trailer.id + ') · ' + axleDescription +
+            '\n' + (selected ? 'Profil associé : ' + String(selected.name || selected.id) :
+              fallback ? 'Profil par défaut : ' + String(fallback.name || fallback.id) +
+                ' (non associé spécialement)' :
+              'Aucun profil associé. Utilise Remorques → Associer la remorque détectée à ce profil.') +
+            '\nTélémétrie : lecture uniquement ; aucun essieu piloté physiquement.';
+          output.style.whiteSpace = 'pre-line';
+          badge.textContent = selected ? 'PROFIL RECONNU' : 'REMORQUE DÉTECTÉE';
+        }
+      } catch (error) {
+        output.textContent = 'Détection non disponible : ' + error.message;
+        badge.textContent = 'INDISPONIBLE';
+      } finally {
+        detectingTrailer = false;
+      }
+    }
+    refreshTrailerDetection();
+    setInterval(refreshTrailerDetection, 2000);
+
     const row = document.createElement('div');
     row.className = 'modern-diagnostic-row';
-    row.innerHTML = '<div><b>Touches configurables → commandes et DLL ATS (Original.8 R&D)</b>' +
+    row.innerHTML = '<div><b>Touches configurables → commandes et DLL ATS (Original.9 (diagnostic))</b>' +
       '<p id="epInputBridgeText">Chargement du profil enregistré…</p></div>' +
       '<span id="epInputBridgeBadge" class="modern-pending-status">VÉRIFICATION</span>';
     diag.appendChild(row);
