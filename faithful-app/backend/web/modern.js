@@ -157,7 +157,7 @@
   }
   nav.addEventListener('click',e=>{const btn=e.target.closest('[data-modern-tab]');if(btn)selectTab(btn.dataset.modernTab);});
   document.addEventListener('click',e=>{const btn=e.target.closest('[data-modern-go]');if(btn)selectTab(btn.dataset.modernGo);});
-  pages.trailers.addEventListener('click',e=>{if(e.target.closest('[data-axle]'))selectTab('axles');});
+  pages.trailers.addEventListener('click',e=>{if(e.target.closest('[data-axle]'))selectTab(document.body.classList.contains('sv3')?'trailers':'axles');});
   document.getElementById('matchKey').addEventListener('change',e=>{if(typeof getProfile!=='function'||!getProfile())return;getProfile().match_key=e.target.value.trim();markDirty();});
   // Un rendu est déclenché après chaque changement de profil ou de sélection.
   const origRenderAll=renderAll;
@@ -222,7 +222,7 @@
   }
   function draw3d(){
     const w=canvas.clientWidth,h=canvas.clientHeight;if(w<=0||h<=0)return;
-    const dpr=Math.min(devicePixelRatio||1,2),rw=Math.floor(w*dpr),rh=Math.floor(h*dpr);
+    const dpr=Math.min(devicePixelRatio||1,3),rw=Math.floor(w*dpr),rh=Math.floor(h*dpr);
     if(canvas.width!==rw||canvas.height!==rh){canvas.width=rw;canvas.height=rh;}
     ctx.setTransform(dpr,0,0,dpr,0,0);
     const bg=ctx.createLinearGradient(0,0,w,h);bg.addColorStop(0,'#0a1b2b');bg.addColorStop(1,'#0e2533');ctx.fillStyle=bg;ctx.fillRect(0,0,w,h);
