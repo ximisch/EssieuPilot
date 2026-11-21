@@ -227,6 +227,25 @@ jobs:
           Expand-Archive -LiteralPath 'release/EssieuPilot_Interface_Originale_ZIP.zip' -DestinationPath 'verify'
           if((Get-FileHash $installer -Algorithm SHA256).Hash -ne (Get-FileHash 'verify/Installer_EssieuPilot.exe' -Algorithm SHA256).Hash){throw 'ZIP invalid'}
           Get-FileHash $installer -Algorithm SHA256
+          # Standalone fallback: publish the EXACT same native DLL for manual tests.
+          Copy-Item -LiteralPath 'physical-payload/EssieuPilotATS.dll' -Destination 'release/EssieuPilotATS.dll'
+          $dllSha=(Get-FileHash 'release/EssieuPilotATS.dll' -Algorithm SHA256).Hash.ToLowerInvariant()
+          $expected=(Get-Content 'physical-payload/module-manifest.json' -Raw|ConvertFrom-Json).files[0].sha256
+          if($dllSha -cne [string]$expected){throw 'Manual and automatically bundled native DLL SHA-256 mismatch'}
+          @'
+          EssieuPilot Original.11, ATS 1.62.2.2 SOLO — EXPERIMENTAL
+          Installateur conseillé : Installer_EssieuPilot.exe (DLL copiée automatiquement).
+          En cas d'échec, place manuellement EssieuPilotATS.dll dans :
+          <Steam>\steamapps\common\American Truck Simulator\bin\win_x64\plugins
+          La DLL de la préversion Original.10 est remplacée automatiquement uniquement
+          si son SHA-256 correspond à la DLL officielle. Les plugins inconnus sont protégés.
+          Avant toute modification, FERME ATS. Conserve une copie de ton profil.
+          Vérifie ensuite Documents\American Truck Simulator\game.log.txt pour le
+          message « EssieuPilot: experimental 1.62.2.2 DLL loaded ».
+          Le braquage PHYSIQUE n'est PAS validé et peut causer un crash.
+          Activer explicitement l'essai seulement en SOLO, JAMAIS EN CONVOI.
+          '@ | Set-Content -LiteralPath 'release/LISEZ_MOI_DLL_ORIGINAL11.txt' -Encoding UTF8
+          Get-FileHash 'release/EssieuPilotATS.dll' -Algorithm SHA256
 
       - name: Upload experimental Windows updater with native DLL bundled
         uses: actions/upload-artifact@v4
@@ -235,6 +254,8 @@ jobs:
           path: |
             release/Installer_EssieuPilot.exe
             release/EssieuPilot_Interface_Originale_ZIP.zip
+            release/EssieuPilotATS.dll
+            release/LISEZ_MOI_DLL_ORIGINAL11.txt
           retention-days: 21
 
       - name: Publish separate test version with original UI (NOT stable)
@@ -251,7 +272,7 @@ jobs:
 
           **DEUX CORRECTIONS pour l'essai SOLO d'EssieuPilotATS.dll sur ATS 1.62.2.2.**
 
-          - **Chargement de la DLL corrigé** : Original.10 traitait la version du schéma de télémétrie SCS comme la version du jeu (comparaison erronée à 62), ce qui provoquait "EssieuPilotATS does not support any available version of the telemetry api" dans `game.log.txt`. Original.11 accepte la version SCS major 1 et vérifie indépendamment le SHA-256 exact du véritable exécutable ATS 1.62.2.2. Les valeurs réelles du schéma/API sont désormais journalisées.
+          - **Correction du refus d'initialisation de la DLL (à vérifier en jeu)** : Original.10 traitait la version du schéma de télémétrie SCS comme la version du jeu (comparaison erronée à 62), ce qui provoquait "EssieuPilotATS does not support any available version of the telemetry api" dans `game.log.txt`. Original.11 accepte la version SCS major 1 et vérifie indépendamment le SHA-256 exact du véritable exécutable ATS 1.62.2.2. Les valeurs réelles du schéma/API sont désormais journalisées.
           - **Steam sur D: détecté** : recherche de Steam dans `D:\Program Files (x86)\Steam` et les autres dossiers habituels de C: à G:, registre Steam et `libraryfolders.vdf`. Si la recherche initiale échoue, l'installateur propose de sélectionner le dossier ATS pour relancer la copie automatiquement.
           - **Migration de la DLL installée manuellement** : une ancienne `EssieuPilotATS.dll` Original.10 dont le SHA-256 correspond EXACTEMENT à l'original officiel peut être remplacée sans intervention. Le script refuse d'écraser tout autre fichier inconnu ou modifié.
           - **Installation vérifiée** : copie du composant `EssieuPilotATS.dll` dans `bin\win_x64\plugins`, comparaison SHA-256 après copie et sauvegarde d'un registre de désinstallation. Les erreurs sont consignées dans `%LOCALAPPDATA%\EssieuPilot\ATS-Physical-Test\dernier-echec-installation.txt`. Le jeu doit être fermé.
@@ -261,6 +282,6 @@ jobs:
           - **Aucun fichier de jeu de base modifié**, aucune modification des mods/telemetry plugins tiers. Uninstaller conserve les profils et n'efface que les fichiers de DLL reconnus.
           - Build C++ DLL Windows x64, tests du backend Go, lancement Windows, SDK, installation sécurisée simulée et installation Inno Setup en CI. Aucun test direct de la physique dans ATS n'a été possible.
           '@
-          gh release create $tag release/Installer_EssieuPilot.exe release/EssieuPilot_Interface_Originale_ZIP.zip --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title 'EssieuPilot — Original.11 : corrections chargement DLL et installation ATS automatique (SOLO)' --prerelease --notes $notes
+          gh release create $tag release/Installer_EssieuPilot.exe release/EssieuPilot_Interface_Originale_ZIP.zip release/EssieuPilotATS.dll release/LISEZ_MOI_DLL_ORIGINAL11.txt --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title 'EssieuPilot — Original.11 : corrections chargement DLL et installation ATS automatique (SOLO)' --prerelease --notes $notes
           if($LASTEXITCODE -ne 0){throw 'Publication failed'}
           gh release view $tag --repo $env:GITHUB_REPOSITORY
