@@ -60,12 +60,12 @@
     const heroRow=make('div','sv-hero-row');
     const frame=make('div','sv-photo-frame');
     const image=make('img');
-    image.src='/hero_reference.jpg';image.alt='Remorque surbaissée EssieuPilot — panorama';
+    image.src='/steel-vector-hero.webp';image.alt='Remorque surbaissée EssieuPilot — panorama';
     image.decoding='async';image.loading='eager';
     // Use the available original photo without stretching pixels; on wide
     // monitors the surrounding frame remains vector/CSS crisp.
     frame.appendChild(image);
-    const watermark=make('span','sv-photo-caution','Illustration • mesures ATS non simulées');
+    const watermark=make('span','sv-photo-caution','Illustration panoramique • aucune mesure physique inventée');
     frame.appendChild(watermark);
     const states=make('div','sv-status-column');
     function statusCard(title,sub,id){
