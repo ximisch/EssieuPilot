@@ -100,7 +100,7 @@
     selectionRow.className='modern-diagnostic-row';
     const selectionDetails=document.createElement('div');
     const selectionHeading=document.createElement('b');
-    selectionHeading.textContent='Original.16 · Limite physique de 0 à 60° et association automatique (SOLO)';
+    selectionHeading.textContent='Original.17 · Limite physique de 0 à 60° et association automatique (SOLO)';
     const selectionHelp=document.createElement('p');
     selectionHelp.textContent='Attelle une remorque dans ATS puis associe-la une seule fois à sa configuration. À chaque changement de remorque, EssieuPilot recherche son identifiant ATS exact et recharge automatiquement le réglage associé. En cas d’identifiant inconnu ou partagé par plusieurs configurations, aucune sélection automatique risquée. Les essieux indépendants restent sauvegardés, mais la DLL ne reçoit actuellement qu’un angle global par remorque.';
     const selectionChoice=document.createElement('select');
@@ -292,12 +292,12 @@
     physicalReportRow.className = 'modern-diagnostic-row';
     const reportText = document.createElement('div');
     const reportHeading = document.createElement('b');
-    reportHeading.textContent = 'Original.16 · Diagnostic automatique du braquage physique';
+    reportHeading.textContent = 'Original.17 · Diagnostic automatique du braquage physique';
     const reportHelp = document.createElement('p');
-    reportHelp.textContent = 'Effectue tes essais avec ATS au premier plan, puis télécharge ici le dernier rapport. Il reste disponible après avoir quitté le jeu. Chemin local : %LOCALAPPDATA%\\EssieuPilot\\ATS-Physical-Test\\diagnostic-original16.json. Braquage physique expérimental observé sur certaines remorques en solo ; les angles réels ne sont pas encore calibrés.';
+    reportHelp.textContent = 'Effectue tes essais avec ATS au premier plan, puis télécharge ici le dernier rapport. Il reste disponible après avoir quitté le jeu. Chemin local : %LOCALAPPDATA%\\EssieuPilot\\ATS-Physical-Test\\diagnostic-original17.json. Braquage physique expérimental observé sur certaines remorques en solo ; les angles réels ne sont pas encore calibrés.';
     const reportLink = document.createElement('a');
     reportLink.href = '/api/physical-diagnostic';
-    reportLink.download = 'EssieuPilot_Diagnostic_Physique_Original16.json';
+    reportLink.download = 'EssieuPilot_Diagnostic_Physique_Original17.json';
     reportLink.textContent = 'Télécharger le diagnostic physique (JSON)';
     reportLink.style.textDecoration = 'underline';
     reportLink.style.fontWeight = 'bold';
