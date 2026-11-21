@@ -294,6 +294,11 @@ func analogFromDevices(p runtimeProfile, devices []device) float64 {
 	return 0
 }
 
+// A release build is always safe by default. R&D-specific command delivery
+// requires both an explicitly customized build and an explicit runtime opt-in.
+// Never set this to "true" in the public update or installer pipeline.
+var physicalResearchBuildMode = "false"
+
 // Original.7 input routing: re-read the saved active profile every 250ms.
 // Uses the same mapping format as the real physical runtime: KEY:* and
 // DEVICE:*; the physical DLL never hardcodes F8/F9/F10.
