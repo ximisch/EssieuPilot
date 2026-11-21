@@ -62,6 +62,10 @@ std::atomic<std::uint64_t> g_appliedZero{0};
 std::atomic<std::uint64_t> g_appliedLow{0};
 std::atomic<std::uint64_t> g_appliedMedium{0};
 std::atomic<std::uint64_t> g_appliedHigh{0};
+// Original.20: strictly observational counts of signed values forwarded to the
+// EXISTING ATS wheel function. No new memory writes or hook offsets.
+std::atomic<std::uint64_t> g_appliedNegative{0};
+std::atomic<std::uint64_t> g_appliedPositive{0};
 std::atomic<int> g_lastAppliedMilli{0};
 std::atomic<std::uint64_t> g_eventFrames{0};
 
@@ -182,6 +186,8 @@ std::uint64_t __fastcall steeringAdvance(void* self)
 
     std::memcpy(raw + layout.angleOffset, &target.angle, sizeof(target.angle));
     g_applyWheels(wheelData, target.angle);
+    if (target.angle < -0.0001f) g_appliedNegative.fetch_add(1, std::memory_order_relaxed);
+    if (target.angle > 0.0001f) g_appliedPositive.fetch_add(1, std::memory_order_relaxed);
     // The DLL must reveal whether ATS really RECEIVED distinct magnitudes.
     // Seeing the same wheel angle at 0.63 vs 1.0 cannot be diagnosed from
     // IPC alone; these counters are native-call evidence only.
@@ -231,6 +237,13 @@ void SCSAPIFUNC onFrame(const scs_event_t event, const void* const,
                 static_cast<unsigned long long>(g_appliedHigh.load()),
                 g_lastAppliedMilli.load());
             say(SCS_LOG_TYPE_message,angles);
+            char signedCounts[250]{};
+            std::snprintf(signedCounts,sizeof(signedCounts),
+                "EssieuPilot R&D signed callbacks (NOT wheel motion): negative=%llu positive=%llu last_milli=%d",
+                static_cast<unsigned long long>(g_appliedNegative.load()),
+                static_cast<unsigned long long>(g_appliedPositive.load()),
+                g_lastAppliedMilli.load());
+            say(SCS_LOG_TYPE_message,signedCounts);
         }
         return;
     }
