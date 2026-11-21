@@ -149,7 +149,7 @@ jobs:
             if($control.physical_control_enabled){throw 'Unsafe physical steering enabled during key test'}
             Write-Host 'PASS: GUI saved F12/J/K keys were applied dynamically by input controller; IPC neutral'
             $up=Invoke-RestMethod -Uri ($ready+'api/updates')
-            if($up.version -ne '2.0.0-original.9' -or -not $up.feed_configured){
+            if($up.version -ne '2.0.0-original.10' -or -not $up.feed_configured){
               throw 'In-app update service not configured'
             }
             Write-Host 'PASS: Original HTML, /api/status, /api/control-link and /api/updates on Windows'
