@@ -38,7 +38,7 @@ const getTrailer = () => getProfile()?.trailers?.find(t => t.id === selectedTrai
 const getAxle = () => getTrailer()?.axles?.find(a => a.id === selectedAxleId) ?? getTrailer()?.axles?.[0];
 const allAxles = () => (getProfile()?.trailers ?? []).flatMap(t => t.axles ?? []);
 const makeAxle = (index) => ({id:uid(),name:`Essieu directeur ${index}`,enabled:true,max_angle:60,turn_rate:14,center_rate:7,turn_instant:false,center_instant:false,ratio:1,reversed:false,current_angle:0});
-const makeTrailer = (n) => ({id:uid(),name:`Semi-remorque ${n}`,model_type:'surbaissée',ats_match_key:'',physical_full_scale_degrees:60,axles:[makeAxle(1),makeAxle(2),makeAxle(3)]});
+const makeTrailer = (n) => ({id:uid(),name:`Semi-remorque ${n}`,model_type:'surbaissée',axles:[makeAxle(1),makeAxle(2),makeAxle(3)]});
 const makeProfile = (name) => ({id:uid(),name,toggle_key:'KEY:F8',left_key:'KEY:F9',right_key:'KEY:F10',analog_axis:'',analog_axis_center:0,analog_invert:false,analog_deadzone:0.08,analog_curve:1,analog_full_scale:100,analog_output_pct:100,analog_mode:'position',match_key:'',auto_center_moving:true,center_speed_gain:1,trailers:[makeTrailer(1)]});
 
 function toast(message, error=false) {
@@ -79,12 +79,6 @@ function normalizeData(input) {
     for(const t of p.trailers) {
       if(!Array.isArray(t.axles) || !t.axles.length || t.axles.length > 32) throw new Error('Essieux invalides dans la remorque.');
       t.id ||= uid(); t.name ||= 'Semi-remorque'; t.model_type ||= 'surbaissée';
-      // Preserve the verified ATS model association across Import / Save.
-      // Never infer an ID from the human-readable trailer name.
-      t.ats_match_key=String(t.ats_match_key||'').trim().slice(0,255);
-      const physicalScale=Number(t.physical_full_scale_degrees);
-      t.physical_full_scale_degrees=Number.isFinite(physicalScale)&&physicalScale>=35&&physicalScale<=120?
-        physicalScale:60;
       for(const a of t.axles) {
         a.id ||= uid(); a.name ||= 'Essieu directeur';
         a.enabled = a.enabled !== false;
