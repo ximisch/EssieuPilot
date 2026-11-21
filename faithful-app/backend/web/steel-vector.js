@@ -31,6 +31,16 @@
     move('.settings',trailers);
     move('.controls',inputs);
     move('.visualize',viewer);
+    // Put the bindings and manual steering tools in a single responsive grid.
+    // This prevents inherited legacy grid-row rules from overlapping the panels.
+    const bindings=inputs.querySelector('.binding-panel');
+    const directControls=inputs.querySelector('.controls');
+    if(bindings&&directControls){
+      const group=document.createElement('div');
+      group.className='sv-input-grid';
+      bindings.before(group);
+      group.append(bindings,directControls);
+    }
     // Keep the original save/import/export actions available even though
     // the old header is visually replaced by the Steel Vector cockpit.
     const tools=document.createElement('div');
@@ -43,6 +53,42 @@
       button.dataset.action=action;button.textContent=label;tools.append(button);
     }
     trailers.append(tools);
+    // Sharp vector schematic of the CONFIGURED axles, never a claim about the
+    // wheels or trailers actually identified by ATS.
+    const axlePanel=trailers.querySelector('.axle-panel');
+    const selector=axlePanel?.querySelector('.trailer-select');
+    let profileSketch=null;
+    if(axlePanel&&selector){
+      profileSketch=document.createElement('div');
+      profileSketch.className='sv-trailer-art';
+      profileSketch.setAttribute('role','img');
+      profileSketch.setAttribute('aria-label','Schéma de la remorque et de ses essieux configurés');
+      selector.insertAdjacentElement('afterend',profileSketch);
+    }
+    let priorCount=-1;
+    function refreshSketch(){
+      if(!profileSketch)return;
+      const raw=parseInt(document.querySelector('#countAxles')?.textContent||'0',10);
+      const count=Number.isFinite(raw)?Math.max(0,Math.min(raw,32)):0;
+      if(count===priorCount)return;priorCount=count;
+      const wheelCount=Math.min(count,16);
+      const first=530,last=850;
+      let wheels='';
+      for(let i=0;i<wheelCount;i++){
+        const x=wheelCount===1?last:first+(last-first)*i/(wheelCount-1);
+        wheels+='<circle cx="'+x.toFixed(0)+'" cy="117" r="14" fill="#041924" stroke="#06dfed" stroke-width="3"/>'+
+          '<circle cx="'+x.toFixed(0)+'" cy="117" r="6" fill="#057d99" stroke="#a7ebf1" stroke-width="1.5"/>';
+      }
+      profileSketch.innerHTML='<div class="sv-trailer-art-title">Remorque configurée <span>Schéma vectoriel · '+count+' essieu(x)</span></div>'+
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 930 150" role="presentation" aria-hidden="true">'+
+        '<g fill="none" stroke="#06ddee" stroke-width="3" stroke-linejoin="round">'+
+        '<path d="M28 107 L28 52 L119 52 L119 33 L217 33 L217 89 L320 89 L360 75 L890 75 L890 100 L905 100 L905 110 L359 110 L322 120 L28 120 Z"/>'+
+        '<path d="M119 54 L217 54 M340 91 L875 91 M28 77 L214 77" stroke-width="1.4" opacity=".55"/>'+
+        '<path d="M62 122 L62 132 M86 122 L86 132 M110 122 L110 132" stroke="#88dce8" stroke-width="2"/>'+
+        '</g><path d="M320 120 L360 110 L892 110" fill="none" stroke="#fa8a13" stroke-width="2" opacity=".75"/>'+
+        wheels+'</svg>';
+    }
+    refreshSketch();
     const axlePage=page('axles');
     if(axlePage)axlePage.setAttribute('aria-hidden','true');
     const titles={dashboard:'Tableau de bord',trailers:'Mes remorques',
@@ -142,6 +188,7 @@
       one('.sv-value',axles).textContent=known?(active?'Commande active':'Inactifs'):'État inconnu';
       one('.sv-hint',axles).textContent=detail;
       drawValues();
+      refreshSketch();
     }
     const preview=new URLSearchParams(window.location.search).get('sv-preview');
     if(['trailers','inputs','viewer','diagnostics','updates','about'].includes(preview)){
