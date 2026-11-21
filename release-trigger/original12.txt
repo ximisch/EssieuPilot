@@ -1,0 +1,5 @@
+EssieuPilot Original.12 diagnostic-only prerelease trigger.
+Requested by user to troubleshoot physical trailer wheel steering not moving in ATS.
+Scope: durable per-condition gate diagnostics, persisted in-game IPC and DLL callback acknowledgements, one-click JSON report. Safe managed DLL update, no changes to physics engine offsets.
+Installer regression tests passed: https://github.com/ximisch/EssieuPilot/actions/runs/44908657007
+SOLO ONLY; experimental wheel movement unvalidated.
