@@ -64,7 +64,7 @@ jobs:
             release/EssieuPilotATS.dll \
             release/LISEZ_MOI_DLL_ORIGINAL21.txt \
             --repo "$GITHUB_REPOSITORY" \
-            --target 069902d2828746e110f4c3fe9b1272858d3735ee \
+            --target "$GITHUB_SHA" \
             --title "EssieuPilot — Original 21 · Convoi expérimental (diagnostic)" \
             --prerelease \
             --notes-file release-notes.md
