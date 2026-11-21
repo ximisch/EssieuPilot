@@ -1,0 +1,43 @@
+name: Original.9 - compilation du pont (pas de release)
+
+on:
+  push:
+    branches:
+      - feature/original9-telemetry-installer
+    paths:
+      - 'src/EssieuPilot.Original9Bridge/**'
+      - '.github/workflows/original9-foundation.yml'
+  pull_request:
+    paths:
+      - 'src/EssieuPilot.Original9Bridge/**'
+      - '.github/workflows/original9-foundation.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Récupérer le code
+        uses: actions/checkout@v4
+      - name: Installer .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Compiler
+        shell: pwsh
+        run: dotnet build src/EssieuPilot.Original9Bridge/EssieuPilot.Original9Bridge.csproj -c Release
+      - name: Tests autonomes (sans ATS)
+        shell: pwsh
+        run: dotnet run --project src/EssieuPilot.Original9Bridge/EssieuPilot.Original9Bridge.csproj -c Release --no-build -- self-test
+      - name: Compiler exécutable Windows autonome
+        shell: pwsh
+        run: dotnet publish src/EssieuPilot.Original9Bridge/EssieuPilot.Original9Bridge.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o publish
+      - name: Conserver l'outil de diagnostic dans les artefacts de CI
+        uses: actions/upload-artifact@v4
+        with:
+          name: EssieuPilot-Original9-Bridge-DEV
+          path: publish/EssieuPilotBridge.exe
+          if-no-files-found: error
