@@ -4,6 +4,7 @@
 // until an explicitly armed, fresh command arrives from the user app.
 // No TruckersMP support. Only one attached trailer unit is supported.
 #define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
 #include <Windows.h>
 #include <scssdk_telemetry.h>
 #include <amtrucks/scssdk_ats.h>
@@ -153,7 +154,7 @@ void SCSAPIFUNC onMultiplayer(const scs_string_t, const scs_u32_t,
                              const scs_value_t* const value, const scs_context_t)
 {
     if (value && value->type == SCS_VALUE_TYPE_s32 &&
-        value->value.value_s32.value != 0)
+        value->value_s32.value != 0)
     {
         g_possibleConvoy.store(true, std::memory_order_relaxed);
         say(SCS_LOG_TYPE_warning,
