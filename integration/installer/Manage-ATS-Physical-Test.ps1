@@ -58,7 +58,7 @@ try{
  $exe=Join-Path $root 'bin\win_x64\amtrucks.exe'
  $plugindir=Join-Path $root 'bin\win_x64\plugins'
  $target=Join-Path $plugindir $name
- if(-not $TestSkipGameHash -and (sha $exe) -cne $expected){throw 'ATS 1.62.2.2 non reconnu : empreinte différente, DLL non installée'}
+ if($Action -eq 'Install' -and -not $TestSkipGameHash -and (sha $exe) -cne $expected){throw 'ATS 1.62.2.2 non reconnu : empreinte différente, DLL non installée'}
  if(Test-Path -LiteralPath $plugindir){
   $dir=Get-Item -LiteralPath $plugindir -Force
   if(-not $dir.PSIsContainer -or ($dir.Attributes -band [IO.FileAttributes]::ReparsePoint)){throw 'Dossier plugins non régulier'}
