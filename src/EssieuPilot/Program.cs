@@ -32,7 +32,9 @@ internal sealed record UpdateCandidate(string Tag, string Url, string Sha256);
 
 public sealed class MainWindow : Form
 {
-#if TEST_VERSION_5
+#if TEST_VERSION_6
+    private const string TechnicalVersion = "1.7.0-test.6";
+#elif TEST_VERSION_5
     private const string TechnicalVersion = "1.7.0-test.5";
 #elif TEST_VERSION_4
     private const string TechnicalVersion = "1.7.0-test.4";
@@ -104,7 +106,7 @@ public sealed class MainWindow : Form
         side.Controls.Add(ActionButton("♢   Diagnostique", 10, 367, 220, 45, ShowDiagnostic));
         side.Controls.Add(ActionButton("↻   Mises à jour", 10, 420, 220, 45, ShowUpdates));
         side.Controls.Add(ActionButton("ⓘ   À propos", 10, 473, 220, 45, ShowAbout));
-        side.Controls.Add(LabelAt("▰ CARGO PULSE", 18, 543, 210, 31, 12, Orange, true));
+        side.Controls.Add(LabelAt("▰ EssieuPilot", 18, 543, 210, 31, 12, Orange, true));
 
         _body.SetBounds(240, 34, 998, 599);
         _body.BackColor = Night;
@@ -379,12 +381,12 @@ public sealed class MainWindow : Form
         var panel=StyledCard(15,111,968,472,_body);
         panel.Controls.Add(LabelAt("Essieu",32,32,214,62,34,Fore,true));
         panel.Controls.Add(LabelAt("Pilot",241,32,220,62,34,Orange,true));
-        panel.Controls.Add(LabelAt("CARGO PULSE — édition de test",36,110,890,42,18,Aqua,true));
+        panel.Controls.Add(LabelAt("EssieuPilot — édition de test",36,110,890,42,18,Aqua,true));
         panel.Controls.Add(LabelAt("Version technique : "+TechnicalVersion,36,181,870,33,15,Fore,true));
         panel.Controls.Add(LabelAt("Configuration des profils de remorques et simulation locale des essieux directeurs.",36,239,886,70,13,Muted));
         panel.Controls.Add(LabelAt("American Truck Simulator — intégration physique non disponible dans cette édition.",36,312,896,54,12,Color.Orange));
         panel.Controls.Add(LabelAt("Nom de l'application : EssieuPilot",36,404,890,31,11,Aqua));
-        _status.Text="EssieuPilot · habillage Cargo Pulse (test).";
+        _status.Text="EssieuPilot · habillage EssieuPilot (test).";
     }
 
     private void Simulate()
@@ -526,7 +528,7 @@ public sealed class MainWindow : Form
         _updateMessage=LabelAt("Clique sur « Rechercher une mise à jour ».",20,63,447,105,12,Muted);
         next.Controls.Add(_updateMessage);
         var change=StyledCard(15,309,968,275,_body);
-        change.Controls.Add(LabelAt("Centre des mises à jour — Cargo Pulse",21,12,917,32,15,Fore,true));
+        change.Controls.Add(LabelAt("Centre des mises à jour — EssieuPilot",21,12,917,32,15,Fore,true));
         change.Controls.Add(LabelAt("• Nouvelle interface : 7 pages assorties aux couleurs bleu nuit, orange et turquoise",21,56,908,34,11,Fore));
         change.Controls.Add(LabelAt("• Profils sauvegardés et suppression avec confirmation",21,98,908,34,11,Fore));
         change.Controls.Add(LabelAt("• États ATS explicitement hors ligne lorsque la connexion n'est pas vérifiée",21,140,909,34,11,Fore));
