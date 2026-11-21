@@ -310,6 +310,31 @@ func startSteeringRuntime(s *server) func() {
 		}
 		ticker := time.NewTicker(40 * time.Millisecond)
 		defer ticker.Stop()
+		// Isolated telemetry reader: the remote loopback snapshot may take
+		// 220ms; it must NEVER block 40ms keyboard/joystick polling.
+		telemetrySnapshots := make(chan telemetryResult, 1)
+		go func() {
+			clock := time.NewTicker(350 * time.Millisecond)
+			defer clock.Stop()
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-clock.C:
+					v := s.telemetry.read()
+					select {
+					case telemetrySnapshots <- v:
+					default:
+						select { case <-telemetrySnapshots: default: }
+						select { case telemetrySnapshots <- v: default: }
+					}
+				}
+			}
+		}()
+		var observedTelemetry telemetryResult
+		var lastTelemetryAt time.Time
+		var plannedAngle float64
+		var lastPlanTick time.Time
 		var profiles runtimeProfiles
 		var lastProfileRead time.Time
 		var lastInput string
@@ -344,6 +369,17 @@ func startSteeringRuntime(s *server) func() {
 			case <-ticker.C:
 			}
 			now := time.Now()
+			select {
+			case v := <-telemetrySnapshots:
+				observedTelemetry = v
+				lastTelemetryAt = now
+			default:
+			}
+			dt := 0.04
+			if !lastPlanTick.IsZero() {
+				dt = now.Sub(lastPlanTick).Seconds()
+			}
+			lastPlanTick = now
 			if now.Sub(lastProfileRead) >= 250*time.Millisecond {
 				lastProfileRead = now
 				gameRunning = statusATSRunning()
@@ -378,6 +414,7 @@ func startSteeringRuntime(s *server) func() {
 				prevApprovedDirection = 0
 				lastApprovedCommand = ""
 				lastApprovedTime = time.Time{}
+				plannedAngle = 0
 				history = nil
 			}
 			manual = retainManualOnFocusChange(manual, gameRunning)
@@ -414,8 +451,9 @@ func startSteeringRuntime(s *server) func() {
 				RightVirtualKey:        codeToVK(active.RightKey),
 				InputMonitoringActive:  foreground && found,
 				PhysicalControlEnabled: false,
+				PhysicalValidationStatus: "DLL R&D compilable ; compatibilité des offsets ATS 1.62 et mouvement réel non validés.",
 				DLLConfirmed:           false,
-				StatusMessage:          "Touches transmises au contrôleur. Canal IPC neutre : aucun braquage physique activé.",
+				StatusMessage:          "Commandes observées et consigne calculée hors jeu. Aucun braquage physique ATS autorisé.",
 			}
 			if !foreground {
 				// ATS lost focus: do not read input from another application.
@@ -489,6 +527,29 @@ func startSteeringRuntime(s *server) func() {
 				}
 				snapshot.LeftPressed = command.Direction == "GAUCHE"
 				snapshot.RightPressed = command.Direction == "DROITE"
+				if len(active.Trailers) == 0 {
+					snapshot.PlannedAngleReason = "Aucune remorque configurée"
+				} else if axle, compatible := trailerCompatible(active.Trailers[0]); compatible {
+					speedValid := observedTelemetry.Connected && !observedTelemetry.Paused &&
+						now.Sub(lastTelemetryAt) < time.Second
+					speed := 0.0
+					if speedValid {speed = observedTelemetry.SpeedKMH}
+					// Safe in-memory preview: calibrated physical game output is
+					// explicitly blocked until ATS 1.62 DLL is proven.
+					plannedAngle = planTestSteeringAngle(plannedAngle, command, dt, speed,
+						axle, active.AutoCenter)
+					snapshot.PlannedAngleDegrees = math.Round(plannedAngle*100)/100
+					snapshot.PlannedAngleValid = true
+					snapshot.ObservedSpeedKMH = speed
+					snapshot.ObservedSpeedValid = speedValid
+					if !speedValid {
+						snapshot.PlannedAngleReason = "Consigne calculée hors jeu ; vitesse ATS non confirmée : aucun recentrage de simulation"
+					} else {
+						snapshot.PlannedAngleReason = "Consigne calculée hors jeu ; vitesse ATS vérifiée (télémétrie SCS)"
+					}
+				} else {
+					snapshot.PlannedAngleReason = "Groupes d'essieux incompatibles avec une commande physique unique par remorque"
+				}
 			}
 			snapshot.ManualArmed = manual
 			snapshot.SteeringInputAllowed = steeringInstructionAllowed(manual, gameRunning, foreground, found)
