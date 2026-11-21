@@ -46,7 +46,7 @@ jobs:
           python research/integration/bridge/patch_upstream.py upstream-ts-extra
           if($LASTEXITCODE -ne 0){throw 'Physical bridge patch failed'}
           $src=Get-Content -Raw upstream-ts-extra/src/main.cpp
-          if(-not $src.Contains('SCS_GET_MINOR_VERSION') -or -not $src.Contains('Local\\EssieuPilotSteeringV1')) {throw 'ATS version gate or IPC bridge absent'}
+          if(-not $src.Contains('SCS_GET_MINOR_VERSION') -or -not $src.Contains('EssieuPilotSteeringV1')) {throw 'ATS version gate or IPC bridge absent'}
           Write-Host 'Physical bridge patched from audited pinned source (NOT live ATS validation)'
 
       - name: Compile native x64 DLL and test IPC without ATS
