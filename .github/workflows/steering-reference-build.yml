@@ -10,6 +10,10 @@ on:
       - 'faithful-app/backend/steering_runtime_windows.go'
       - 'faithful-app/backend/input_link.go'
       - 'faithful-app/backend/web/original-live.js'
+      - 'faithful-app/backend/experimental_physical_gate*'
+      - 'faithful-app/backend/physical_ack*'
+      - 'faithful-app/backend/telemetry.go'
+      - 'faithful-app/backend/telemetry_test.go'
   workflow_dispatch:
 
 permissions:
