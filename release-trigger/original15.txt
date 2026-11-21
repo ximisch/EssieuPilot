@@ -1,0 +1,5 @@
+EssieuPilot Original.15 test release requested in follow-up to Original.14 visual steering feedback.
+User observed SAME actual ATS wheel steering angle at reference 55° (IPC 0.636) and 35° (IPC 1.0), and cannot select a value below 35° in the calibration field.
+New separate physical angle limit 0–60° with 0 forcing normalized zero rather than dividing by zero; old calibration reference remains independently 35–120° with explicit "advanced" label.
+Native DLL keeps exact ATS 1.62.2.2 gated hook, adds applied zero/low/medium/high command bins in game.log.txt, does NOT claim measured wheel angle or a fix for physical saturation. Maintains all original GUI, remorque automatic matching, per-axle user settings and explicit SOLO consent. No Convoi claims.
+Installer mock successful. Publish only if Windows Go tests, JS, .NET UI, C++ native and Inno Setup checks pass.
