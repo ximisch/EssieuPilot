@@ -109,8 +109,8 @@ begin
       '" -Action Install',
       '', SW_SHOW, ewWaitUntilTerminated, ResultCode)) or (ResultCode <> 0) then
       MsgBox('EssieuPilot a été installé, mais la synchronisation des DLL ATS a échoué.' +
-        #13#10 + 'Les autres plugins ATS sont conservés. Ferme ATS et vérifie son dossier Steam.' +
-        #13#10 + 'Aucune DLL non reconnue n’a été écrasée.', mbError, MB_OK);
+        Chr(13) + Chr(10) + 'Les autres plugins ATS sont conservés. Ferme ATS et vérifie son dossier Steam.' +
+        Chr(13) + Chr(10) + 'Aucune DLL non reconnue n’a été écrasée.', mbError, MB_OK);
   end;
 end;
 #endif
