@@ -25,11 +25,14 @@ jobs:
         run: dotnet build src/EssieuPilot/EssieuPilot.csproj --configuration Release -p:BuildNumber=5
 
   build-and-release:
-    if: github.event_name == 'push'
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    needs: compile-check
     runs-on: windows-latest
     steps:
       - name: Récupérer le code source
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Installer .NET 8
         uses: actions/setup-dotnet@v4
@@ -80,7 +83,7 @@ jobs:
               if ($LASTEXITCODE -ne 0) { throw "Mise à jour GitHub Release échouée" }
             }
             else {
-              gh release create "$tag" "$installer" --repo $repo --title "EssieuPilot - test de mise à jour $build" --prerelease --notes "Édition de test indépendante de la version 1.6.1. Code source public. Habillage EssieuPilot : sept onglets, profils remorque et suppression confirmée, menu Mises à jour, diagnostics explicitement non connectés à ATS ; simulation sans commandes physiques ATS ni Convoi. Pas de signature numérique."
+              gh release create "$tag" "$installer" --target "${{ github.event.pull_request.head.sha }}" --repo $repo --title "EssieuPilot - test de mise à jour $build" --prerelease --notes "Édition de test indépendante de la version 1.6.1. Code source public. Habillage EssieuPilot : sept onglets, profils remorque et suppression confirmée, menu Mises à jour, diagnostics explicitement non connectés à ATS ; simulation sans commandes physiques ATS ni Convoi. Pas de signature numérique."
               if ($LASTEXITCODE -ne 0) { throw "Création GitHub Release échouée pour $tag" }
             }
           }
