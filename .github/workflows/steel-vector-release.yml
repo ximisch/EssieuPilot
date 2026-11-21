@@ -66,7 +66,7 @@ jobs:
           if(-not (Test-Path "$web/steel-vector-hero.webp")){throw 'Panorama image missing'}
           if((Get-Item "$web/steel-vector-hero.webp").Length -lt 100000){throw 'Panorama photo has insufficient resolution'}
           $live=[IO.File]::ReadAllText("$web/original-live.js")
-          foreach($k in @('epPhysicalTrailerChoice','physical_angle_limit_degrees','fetch(\'/api/status\'','physical_full_scale_degrees')) {
+          foreach($k in @('epPhysicalTrailerChoice','physical_angle_limit_degrees','/api/status','physical_full_scale_degrees')) {
             if(-not $live.Contains($k)){throw "Original15 live module missing: $k"}
           }
           $runtime=[IO.File]::ReadAllText('faithful-app/backend/steering_runtime_windows.go')
