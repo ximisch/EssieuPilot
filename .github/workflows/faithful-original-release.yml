@@ -123,7 +123,10 @@ jobs:
           New-Item -ItemType Directory -Force 'out' | Out-Null
           Push-Location 'faithful-app/backend'
           try {
-            gofmt -w *.go
+            Get-ChildItem -Filter '*.go' | ForEach-Object {
+              & gofmt -w $_.FullName
+              if($LASTEXITCODE -ne 0){throw "gofmt failed: $($_.Name)"}
+            }
             go test -v ./...
             if($LASTEXITCODE -ne 0){throw 'Backend tests failed'}
             go build -trimpath -o ../../out/EssieuPilotBackend.exe .
