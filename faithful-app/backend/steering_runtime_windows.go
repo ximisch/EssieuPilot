@@ -333,6 +333,8 @@ func startSteeringRuntime(s *server) func() {
 		}()
 		var observedTelemetry telemetryResult
 		var lastTelemetryAt time.Time
+		var lastDLLProbe physicalProbeReport
+		var lastDLLProbeCheck time.Time
 		var plannedAngle float64
 		var plannedAvailable bool
 		var lastPlanTick time.Time
@@ -370,6 +372,10 @@ func startSteeringRuntime(s *server) func() {
 			case <-ticker.C:
 			}
 			now := time.Now()
+			if now.Sub(lastDLLProbeCheck) >= 500*time.Millisecond {
+				lastDLLProbe = readPhysicalDLLProbe()
+				lastDLLProbeCheck = now
+			}
 			select {
 			case v := <-telemetrySnapshots:
 				observedTelemetry = v
@@ -453,9 +459,13 @@ func startSteeringRuntime(s *server) func() {
 				RightVirtualKey:        codeToVK(active.RightKey),
 				InputMonitoringActive:  foreground && found,
 				PhysicalControlEnabled: false,
-				PhysicalValidationStatus: "DLL R&D compilable ; compatibilité des offsets ATS 1.62 et mouvement réel non validés.",
+				PhysicalDLLLoaded: gameRunning && lastDLLProbe.Loaded,
+				PhysicalDLLSDKAccepted: gameRunning && lastDLLProbe.Recognized,
+				PhysicalDLLGameVersion: lastDLLProbe.GameVersion,
+				PhysicalDLLProbeMessage: lastDLLProbe.Reason,
+				PhysicalValidationStatus: "Chargement DLL vérifiable en jeu ; offsets ATS 1.62 et direction physique toujours non validés.",
 				DLLConfirmed:           false,
-				StatusMessage:          "Commandes observées et consigne calculée hors jeu. Aucun braquage physique ATS autorisé.",
+				StatusMessage: "Diagnostic DLL et consigne calculée. Aucun braquage physique ATS autorisé avant validation.",
 			}
 			if !foreground {
 				// ATS lost focus: do not read input from another application.
