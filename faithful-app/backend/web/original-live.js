@@ -94,13 +94,99 @@
   // Stage 1 is displayed in the existing Diagnostic tab, not a new Pilotage tab.
   const diag = document.querySelector('.modern-diagnostic');
   if (diag) {
+    // Original.13: arbitrary saved trailer configurations, no special-casing
+    // 3 presets and no silent choice of an incorrect physical trailer.
+    const selectionRow=document.createElement('div');
+    selectionRow.className='modern-diagnostic-row';
+    const selectionDetails=document.createElement('div');
+    const selectionHeading=document.createElement('b');
+    selectionHeading.textContent='Original.13 · Choisir la configuration de la remorque attelée (test SOLO)';
+    const selectionHelp=document.createElement('p');
+    selectionHelp.textContent='Chaque profil peut contenir plusieurs remorques. Sélectionne ici celle correspondant à la remorque actuellement attelée dans ATS. Cette association conserve les autres réglages. La DLL physique actuelle ne pilote qu’un angle global par remorque ; les angles d’essieux divergents ne sont pas encore pris en charge physiquement.';
+    const selectionChoice=document.createElement('select');
+    selectionChoice.id='epPhysicalTrailerChoice';
+    selectionChoice.setAttribute('aria-label','Configuration de remorque à utiliser pour l’essai physique');
+    selectionChoice.style.marginRight='8px';
+    const selectionButton=document.createElement('button');
+    selectionButton.type='button';
+    selectionButton.className='btn btn-primary';
+    selectionButton.textContent='Utiliser cette configuration pour ATS';
+    const selectionNotice=document.createElement('p');
+    selectionNotice.id='epPhysicalTrailerChoiceStatus';
+    selectionDetails.append(selectionHeading,selectionHelp,selectionChoice,selectionButton,selectionNotice);
+    selectionRow.appendChild(selectionDetails);
+    diag.appendChild(selectionRow);
+    async function refreshSelection(){
+      if(selectionChoice.dataset.busy==='1')return;
+      try {
+        const res=await fetch('/api/config',{cache:'no-store'});
+        if(!res.ok)throw new Error('Profils indisponibles');
+        const config=await res.json();
+        const p=config.profiles?.find(x=>x.id===config.active_id);
+        if(!p)return;
+        // Do not replace the value while the user is interacting.
+        const previous=selectionChoice.value;
+        const options=p.trailers||[];
+        const key=options.map(t=>t.id+'|'+t.name).join(';')+'::'+p.id;
+        if(selectionChoice.dataset.key!==key){
+          selectionChoice.innerHTML='';
+          const choose=document.createElement('option');
+          choose.value='';
+          choose.textContent='— Choisir une remorque —';
+          selectionChoice.appendChild(choose);
+          for(const t of options){
+            const item=document.createElement('option');
+            item.value=t.id;
+            item.textContent=t.name+' ('+(t.axles?.filter(a=>a.enabled).length||0)+' essieux actifs)';
+            selectionChoice.appendChild(item);
+          }
+          selectionChoice.dataset.key=key;
+          selectionChoice.value=options.some(t=>t.id===previous)?previous:(p.physical_selected_trailer_id||'');
+        }
+        if(!selectionChoice.dataset.chosen){
+          selectionChoice.value=p.physical_selected_trailer_id||'';
+          selectionNotice.textContent=p.physical_selected_trailer_id?
+            'Configuration enregistrée : '+(options.find(t=>t.id===p.physical_selected_trailer_id)?.name||'sélection indisponible'):
+            (options.length===1?'Une seule configuration : sélection automatique par défaut.':'Plusieurs configurations : sélection explicite requise avant un essai physique.');
+        }
+      }catch(e){selectionNotice.textContent='Configuration indisponible : '+e.message}
+    }
+    selectionChoice.addEventListener('change',()=>{selectionChoice.dataset.chosen='1';});
+    selectionButton.addEventListener('click',async()=>{
+      if(selectionChoice.dataset.busy==='1')return;
+      if(!selectionChoice.value){selectionNotice.textContent='Choisis une remorque avant de confirmer.';return}
+      selectionChoice.dataset.busy='1';selectionButton.disabled=true;
+      try {
+        const res=await fetch('/api/config',{cache:'no-store'});
+        if(!res.ok)throw new Error('Lecture du profil impossible');
+        const config=await res.json();
+        const p=config.profiles.find(x=>x.id===config.active_id);
+        if(!p||!p.trailers?.some(x=>x.id===selectionChoice.value))throw new Error('Configuration modifiée : actualise la page');
+        p.physical_selected_trailer_id=selectionChoice.value;
+        const result=await fetch('/api/config',{
+          method:'POST',
+          headers:{'Content-Type':'application/json','X-ATS-Token':document.body.dataset.token},
+          body:JSON.stringify(config)
+        });
+        if(!result.ok)throw new Error('Enregistrement refusé');
+        // Keep original in-memory app profile in sync for a later user Save.
+        if(typeof getProfile==='function'){
+          const appProfile=getProfile();
+          if(appProfile?.id===p.id)appProfile.physical_selected_trailer_id=p.physical_selected_trailer_id;
+        }
+        selectionChoice.dataset.chosen='';
+        selectionNotice.textContent='Association sauvegardée. Retourne dans ATS SOLO pour tester.';
+      }catch(e){selectionNotice.textContent='Erreur : '+e.message}
+      finally {selectionChoice.dataset.busy='';selectionButton.disabled=false;}
+    });
+    refreshSelection();setInterval(refreshSelection,4000);
     // Original.12: download the DURABLE last-in-game report. It survives
     // Alt+Tab and stopping ATS and cannot enable any physical steering.
     const physicalReportRow = document.createElement('div');
     physicalReportRow.className = 'modern-diagnostic-row';
     const reportText = document.createElement('div');
     const reportHeading = document.createElement('b');
-    reportHeading.textContent = 'Original.12 · Diagnostic automatique du braquage physique';
+    reportHeading.textContent = 'Original.13 · Diagnostic automatique du braquage physique';
     const reportHelp = document.createElement('p');
     reportHelp.textContent = 'Effectue tes essais avec ATS au premier plan, puis télécharge ici le dernier rapport. Il reste disponible après avoir quitté le jeu. Chemin local : %LOCALAPPDATA%\\EssieuPilot\\ATS-Physical-Test\\diagnostic-original12.json. Aucun braquage réel n’est encore validé.';
     const reportLink = document.createElement('a');
