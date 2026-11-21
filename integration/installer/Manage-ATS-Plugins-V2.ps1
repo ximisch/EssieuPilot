@@ -249,10 +249,14 @@ try {
     if($Action -eq "Preflight"){Write-Host "DLL et .scs validés, ATS fermé, emplacements prêts : $root / $modDir";exit 0}
     if(-not(Test-Path -LiteralPath $plugins)){New-Item -ItemType Directory -Path $plugins -Force|Out-Null}
     New-Item -ItemType Directory -Path $StateDir -Force|Out-Null
-    # Backups of only managed DLLs; never overwrite third-party files.
+    # Transaction spans BOTH game DLLs and user .scs mods, never third-party files.
     $backup=Join-Path $StateDir ("rollback-"+[guid]::NewGuid().ToString("N"))
     New-Item -ItemType Directory -Path $backup -Force|Out-Null
     $had=@{}
+    $modHad=@{}
+    $modNames=@{}
+    foreach($item in $oldMods) {$modNames[([string]$item.name).ToLowerInvariant()]=[string]$item.name}
+    foreach($item in $newMods) {$modNames[([string]$item.name).ToLowerInvariant()]=[string]$item.name}
     $oldManifest=(Test-Path -LiteralPath $recordPath)
     try {
         if ($oldManifest){Copy-Item -LiteralPath $recordPath -Destination (Join-Path $backup "installed.json")}
@@ -261,20 +265,49 @@ try {
             $had[$name]=Test-Path -LiteralPath $to
             if($had[$name]){Copy-Item -LiteralPath $to -Destination (Join-Path $backup $name)}
         }
+        if($modNames.Count -gt 0) {
+            if(-not(Test-Path -LiteralPath $modDir)){New-Item -ItemType Directory -Path $modDir -Force|Out-Null}
+            New-Item -ItemType Directory -Path (Join-Path $backup "mods") -Force|Out-Null
+            foreach($name in $modNames.Values){
+                $to=Join-Path $modDir $name
+                $modHad[$name]=Test-Path -LiteralPath $to
+                if($modHad[$name]){
+                    Copy-Item -LiteralPath $to -Destination (Join-Path (Join-Path $backup "mods") $name) -ErrorAction Stop
+                }
+            }
+        }
         foreach($name in $names) {
             $from=Join-Path $PackageDir $name
             $to=Join-Path $plugins $name
             Copy-Item -LiteralPath $from -Destination $to -Force -ErrorAction Stop
             if ((Digest $to) -cne (Digest $from)){throw "Copie DLL invalide : $name"}
         }
+        foreach($item in $newMods) {
+            $name=[string]$item.name
+            $from=Join-Path $PackageDir $name
+            $to=Join-Path $modDir $name
+            Copy-Item -LiteralPath $from -Destination $to -Force -ErrorAction Stop
+            if ((Digest $to) -cne [string]$item.sha256){throw "Copie .scs invalide : $name"}
+        }
+        foreach($old in $oldMods) {
+            $keep=@($newMods|Where-Object {$_.name -ieq [string]$old.name})
+            if($keep.Count -eq 0) {
+                $oldPath=Join-Path $modDir ([string]$old.name)
+                if(Test-Path -LiteralPath $oldPath){Remove-Item -LiteralPath $oldPath -ErrorAction Stop}
+            }
+        }
         $records=@($package.files|ForEach-Object {
             @{name=[string]$_.name;sha256=[string]$_.sha256}
         })
-        $new=@{schema=1;game_path=$root;module_version=[string]$package.module_version;files=$records}
+        $modRecords=@($newMods|ForEach-Object {
+            @{name=[string]$_.name;sha256=[string]$_.sha256}
+        })
+        $new=@{schema=1;game_path=$root;module_version=[string]$package.module_version;
+            files=$records;mods=$modRecords;mods_path=$modDir}
         $tmp=Join-Path $StateDir ("installed-"+[guid]::NewGuid().ToString("N")+".json")
         $new|ConvertTo-Json -Depth 4|Set-Content -LiteralPath $tmp -Encoding UTF8
         Move-Item -LiteralPath $tmp -Destination $recordPath -Force -ErrorAction Stop
-        Write-Host "EssieuPilot et ses DLL synchronisés : $($package.module_version)"
+        Write-Host "EssieuPilot, DLL et $($newMods.Count) mod(s) .scs synchronisés : $($package.module_version)"
     } catch {
         $failure=$_
         foreach($name in $names){
@@ -285,10 +318,21 @@ try {
                 Remove-Item -LiteralPath $to -Force
             }
         }
+        foreach($name in $modNames.Values) {
+            $to=Join-Path $modDir $name
+            $from=Join-Path (Join-Path $backup "mods") $name
+            if(Test-Path -LiteralPath $from){
+                Copy-Item -LiteralPath $from -Destination $to -Force
+            } elseif($modHad.ContainsKey($name) -and -not $modHad[$name] -and (Test-Path -LiteralPath $to)) {
+                Remove-Item -LiteralPath $to -Force
+            }
+        }
         if(Test-Path -LiteralPath (Join-Path $backup "installed.json")){
             Copy-Item -LiteralPath (Join-Path $backup "installed.json") -Destination $recordPath -Force
+        } elseif(Test-Path -LiteralPath $recordPath) {
+            Remove-Item -LiteralPath $recordPath -Force
         }
-        throw "Mise à jour DLL annulée et fichiers précédents restaurés : $($failure.Exception.Message)"
+        throw "Mise à jour DLL/.scs annulée ; anciens modules restaurés : $($failure.Exception.Message)"
     } finally {
         if(Test-Path -LiteralPath $backup){Remove-Item -LiteralPath $backup -Recurse -Force -ErrorAction SilentlyContinue}
     }
