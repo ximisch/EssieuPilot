@@ -92,8 +92,12 @@ public sealed class MainWindow : Form
         side.Controls.Add(ActionButton("Tableau de bord", 14, 22, 192, 45, ShowDashboard));
         side.Controls.Add(ActionButton("Profils de remorques", 14, 81, 192, 45, ShowProfiles));
         side.Controls.Add(ActionButton("Mises à jour", 14, 140, 192, 45, ShowUpdates));
-        side.Controls.Add(LabelAt("TEST : aucune DLL ATS", 15, 455, 200, 27, 10, Muted));
-        side.Controls.Add(LabelAt(TechnicalVersion, 15, 480, 185, 25, 10, Muted));
+        side.Controls.Add(LabelAt("CONNEXION ATS", 15, 346, 190, 26, 9, Muted, true));
+        side.Controls.Add(LabelAt("● Hors ligne", 15, 374, 190, 28, 12, Color.Orange, true));
+        side.Controls.Add(LabelAt("ESSIEUX DIRECTEURS", 15, 410, 190, 26, 9, Muted, true));
+        side.Controls.Add(LabelAt("● Inactifs", 15, 438, 190, 28, 12, Color.Orange, true));
+        side.Controls.Add(LabelAt("TEST : aucune DLL ATS", 15, 475, 200, 27, 9, Muted));
+        side.Controls.Add(LabelAt(TechnicalVersion, 15, 503, 185, 25, 9, Muted));
 
         _body.SetBounds(239, 111, 757, 505);
         _body.BackColor = Night;
@@ -168,25 +172,58 @@ public sealed class MainWindow : Form
 
     private void ShowDashboard()
     {
-        ResetPage("Tableau de bord", "Simulation visuelle uniquement : aucun effet dans American Truck Simulator.");
-        var card = Box(13, 108, 722, 329, Surface, _body);
-        card.Controls.Add(LabelAt("Angle simulé des essieux", 22, 24, 655, 34, 15, Fore, true));
-        _angleText = LabelAt("0,0°", 22, 75, 440, 72, 37, Aqua, true);
+        ResetPage("Tableau de bord", "Vue d'ensemble de la remorque et simulation locale des essieux.");
+        var card = Box(13, 98, 722, 392, Surface, _body);
+        card.Controls.Add(LabelAt("SIMULATION 3D  ·  REMORQUE", 20, 12, 440, 30, 12, Fore, true));
+        card.Controls.Add(LabelAt("Angle des essieux", 515, 12, 185, 24, 10, Muted));
+        _angleText = LabelAt("0,0°", 515, 36, 180, 45, 26, Aqua, true);
         card.Controls.Add(_angleText);
-        card.Controls.Add(LabelAt("Maintenir A ou D pour braquer ; relâcher pour rester à l'angle.", 23, 172, 671, 39, 11, Muted));
+        var panorama = new Panel { Bounds = new Rectangle(18, 86, 686, 155), BackColor = Color.FromArgb(16, 34, 49) };
+        panorama.Paint += (_, e) =>
+        {
+            var g = e.Graphics;
+            g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+            using var road = new Pen(Color.FromArgb(55, 108, 120), 2);
+            using var highlight = new Pen(Aqua, 3);
+            using var steel = new SolidBrush(Color.FromArgb(81, 136, 155));
+            using var wheel = new SolidBrush(Color.FromArgb(41, 211, 205));
+            using var cabin = new SolidBrush(Color.FromArgb(28, 151, 166));
+            g.DrawLine(road, 20, 128, 661, 128);
+            g.DrawLine(road, 95, 104, 596, 104);
+            g.FillPolygon(steel, new [] { new Point(84, 73), new Point(533, 73), new Point(585, 98), new Point(124, 98) });
+            g.DrawLine(highlight, 85, 72, 534, 72);
+            g.FillRectangle(cabin, 36, 39, 80, 58);
+            g.FillRectangle(cabin, 58, 20, 48, 28);
+            g.FillRectangle(steel, 105, 77, 74, 16);
+            for (var i = 0; i < Math.Clamp(_profile.Axles, 1, 8); i++)
+            {
+                int x = 430 + i * 27;
+                g.FillEllipse(wheel, x, 94, 19, 19);
+                g.FillEllipse(Brushes.Black, x + 5, 99, 9, 9);
+            }
+            using var titleFont = new Font("Segoe UI", 10, FontStyle.Bold);
+            using var noteFont = new Font("Segoe UI", 8);
+            g.DrawString(_profile.Name, titleFont, Brushes.White, 20, 7);
+            g.DrawString("Aperçu schématique · non connecté à ATS", noteFont, Brushes.LightGray, 390, 132);
+        };
+        card.Controls.Add(panorama);
+        var conn = Box(18, 254, 330, 58, PanelColor, card);
+        conn.Controls.Add(LabelAt("CONNEXION ATS", 14, 7, 190, 22, 9, Muted, true));
+        conn.Controls.Add(LabelAt("● Hors ligne", 14, 29, 255, 25, 11, Color.Orange, true));
+        var active = Box(360, 254, 344, 58, PanelColor, card);
+        active.Controls.Add(LabelAt("ESSIEUX DIRECTEURS", 14, 7, 260, 22, 9, Muted, true));
+        active.Controls.Add(LabelAt("● Inactifs", 14, 29, 260, 25, 11, Color.Orange, true));
         var move = new CheckBox
         {
-            Text = "Le véhicule avance (recentrage automatique)",
-            Bounds = new Rectangle(23, 236, 665, 34),
-            Checked = _forward,
-            ForeColor = Fore,
-            BackColor = Surface
+            Text = "Le véhicule avance (recentrage automatique simulé)",
+            Bounds = new Rectangle(20, 318, 661, 30),
+            Checked = _forward, ForeColor = Fore, BackColor = Surface
         };
         move.CheckedChanged += (_, _) => _forward = move.Checked;
         card.Controls.Add(move);
-        card.Controls.Add(LabelAt("Profil : " + _profile.Name + " | " + _profile.Axles + " essieux", 23, 285, 670, 30, 11, Aqua));
-        _status.Text = "Paramètres d'essai : " + _profile.SteeringRate + "°/s à l'appui, " +
-            _profile.ReturnRate + "°/s au recentrage et ±" + _profile.MaxAngle + "° maximum.";
+        card.Controls.Add(LabelAt("A / D : direction · Profil : " + _profile.Name + " · " + _profile.Axles + " essieux",
+            20, 354, 675, 29, 10, Aqua));
+        _status.Text = "Simulation uniquement : braquage ATS et Convoi non validés.";
     }
 
     private void Simulate()
@@ -263,6 +300,25 @@ public sealed class MainWindow : Form
             ShowProfiles();
         }));
 
+        card.Controls.Add(ActionButton("Supprimer le profil", 267, 298, 409, 40, () =>
+        {
+            if (_profiles.Count <= 1)
+            {
+                MessageBox.Show("Le dernier profil ne peut pas être supprimé.", "EssieuPilot",
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+            var selected = _profile;
+            if (MessageBox.Show("Supprimer définitivement le profil « " + selected.Name + " » ?",
+                "EssieuPilot — suppression", MessageBoxButtons.YesNo,
+                MessageBoxIcon.Warning) != DialogResult.Yes) return;
+            _profiles.Remove(selected);
+            _profile = _profiles[0];
+            SaveProfiles();
+            ShowProfiles();
+            _status.Text = "Profil supprimé : " + selected.Name;
+        }));
+
         card.Controls.Add(ActionButton("Enregistrer le profil", 267, 244, 409, 44, () =>
         {
             _profile.Name = string.IsNullOrWhiteSpace(name.Text) ? "Remorque de test" : name.Text.Trim();
@@ -275,7 +331,7 @@ public sealed class MainWindow : Form
             ShowProfiles();
             _status.Text = "Profil enregistré dans %APPDATA%\\EssieuPilot-Test.";
         }, true));
-        card.Controls.Add(LabelAt("Ces réglages n'agissent pas sur les essieux du jeu.", 267, 311, 412, 37, 10, Muted));
+        card.Controls.Add(LabelAt("Ces réglages n'agissent pas sur les essieux du jeu.", 267, 349, 412, 26, 9, Muted));
         listing.SelectedIndex = Math.Max(0, _profiles.IndexOf(_profile));
     }
 
