@@ -41,7 +41,7 @@ func TestNormalizePhysicalAngleRND(t *testing.T) {
 		t.Fatalf("10.5 nominal degrees at 60 degree calibration should produce 0.175 normalized, got %v %v",got,ok)
 	}
 	for _,v:=range []struct{angle,max float64}{
-		{math.NaN(),35},{0,math.Inf(1)},{36,35},{0,0},{0,70},{math.Inf(-1),35},
+		{math.NaN(),35},{0,math.Inf(1)},{36,35},{0,-1},{0,70},{math.Inf(-1),35},
 	} {
 		if _,ok:=normalizedPhysicalAngle(v.angle,v.max,60);ok {
 			t.Fatalf("accepted uncalibrated invalid physical angle %v/%v",v.angle,v.max)
@@ -63,4 +63,13 @@ func TestPhysicalCalibrationDecouplesPresetLimitFromATSFullLock(t *testing.T) {
     for _,v:=range []float64{-1,34,121,math.NaN(),math.Inf(1)} {
         if physicalReferenceDegrees(v)!=0 {t.Fatalf("invalid reference %v accepted",v)}
     }
+}
+
+func TestOriginal15PhysicalZeroIsStraight(t *testing.T) {
+    for _,ref:=range []float64{0,35,60,120} {
+        v,ok:=normalizedPhysicalAngle(0,0,ref)
+        if !ok || v!=0 {t.Fatalf("zero steering rejected: %v %v ref=%v",v,ok,ref)}
+    }
+    if _,ok:=normalizedPhysicalAngle(1,0,60);ok {t.Fatal("nonzero target when cap=0 accepted")}
+    if _,ok:=normalizedPhysicalAngle(-.1,0,60);ok {t.Fatal("negative steering when cap=0 accepted")}
 }
