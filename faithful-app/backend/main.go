@@ -25,7 +25,7 @@ import (
 //go:embed web/*
 var frontend embed.FS
 
-const technicalVersion = "2.0.0-original.11"
+const technicalVersion = "2.0.0-original.12"
 
 type server struct {
 	telemetry telemetryBridge
@@ -189,6 +189,7 @@ func newServer(p profileStore) (*server, error) {
 	router.HandleFunc("GET /api/telemetry", s.getTelemetry)
     router.HandleFunc("GET /api/status", s.getLiveStatus)
     router.HandleFunc("GET /api/control-link", s.getInputLink)
+    router.HandleFunc("GET /api/physical-diagnostic", s.getPhysicalDiagnostic)
     router.HandleFunc("POST /api/control-link/mode", s.setInputMode)
 	router.HandleFunc("GET /api/ats/installations", s.getATSInstallations)
 	router.HandleFunc("GET /api/updates", s.getOriginalUpdates)
