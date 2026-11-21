@@ -328,7 +328,6 @@ jobs:
           4. Dans EssieuPilot > Diagnostique > Compatibilité multijoueur, vérifier le statut et exporter le diagnostic JSON.
           5. Ne pas compter sur le braquage physique Convoi ; redémarrer ATS avant un nouvel essai Solo après une détection multi.
           '@
-          '@
           gh release create $tag release/Installer_EssieuPilot.exe release/EssieuPilot_Interface_Originale_ZIP.zip release/EssieuPilotATS.dll release/LISEZ_MOI_DLL_ORIGINAL21.txt --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title 'EssieuPilot — Original 21 · vérification Convoi Steel Vector' --prerelease --notes $notes
           if($LASTEXITCODE -ne 0){throw 'Publication failed'}
           gh release view $tag --repo $env:GITHUB_REPOSITORY
