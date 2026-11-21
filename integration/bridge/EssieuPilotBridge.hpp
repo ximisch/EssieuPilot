@@ -1,5 +1,6 @@
 #pragma once
 // R&D ONLY — physical in-game trailer steering ABI, not ATS 1.62 validated.
+// The DLL is built/tested in isolated GitHub Actions; compilation does not certify game offsets.
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
 #include <cmath>
