@@ -1,0 +1,3 @@
+EssieuPilot Steel Vector — mise à jour graphique depuis Original.15
+Build technique 2.0.0-original.19 ; fichiers ATS conservés, DLL expérimentale Original15 incluse avec consentement explicite.
+Garder ancien profil, protection .scs et DLL tierces.
