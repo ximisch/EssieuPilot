@@ -1,0 +1,12 @@
+EssieuPilot Original.10 experimental release trigger — 2026-11-21
+
+User requested an in-app update with DLL installed automatically for a controlled ATS test.
+
+Evidence before packaging:
+- Windows DLL compilation + SCS exports: https://github.com/ximisch/EssieuPilot/actions/runs/44898502297 (success)
+- Safe single-DLL installer mock tests + Inno Setup compile: https://github.com/ximisch/EssieuPilot/actions/runs/44898802493 (success)
+- Exact supported ATS binary 1.62.2.2 SHA-256 63ecae85a070934530d9fd971d4d56e5479f1214d7077b403f79b8981c613e08
+
+Publication is explicitly experimental and solo-only.
+No evidence yet of physical wheel motion and no Convoy multiplayer synchronization.
+Never identify this version as physically validated or stable.
