@@ -1,0 +1,1 @@
+Visual QA on 2026-11-21: confirm dashboard faithful to user-approved screenshot, with six real menu buttons and two stacked statuses; no release from this workflow.
