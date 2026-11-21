@@ -61,6 +61,7 @@ type inputLinkSnapshot struct {
 	PhysicalPacketSent bool `json:"physical_packet_sent"`
 	PhysicalPacketNormalized float64 `json:"physical_packet_normalized"`
 	PhysicalCalibrationReferenceDegrees float64 `json:"physical_calibration_reference_degrees"`
+	PhysicalAngleLimitDegrees float64 `json:"physical_angle_limit_degrees"`
 	PhysicalSelectedTrailerID string `json:"physical_selected_trailer_id"`
 	PhysicalDetectedTrailerID string `json:"physical_detected_trailer_id"`
 	PhysicalSelectionReason string `json:"physical_selection_reason"`
