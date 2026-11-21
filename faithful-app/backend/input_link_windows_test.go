@@ -128,3 +128,39 @@ func TestHeldDirectionKeepsOneContinuousHoldWithoutRepeatedPresses(t *testing.T)
         }
     }
 }
+
+func TestJoystickButtonsIndependentlyAssigned(t *testing.T) {
+    buttons:=[]bool{true, false, true, false, false, true}
+    dev:=[]device{{ID:"JOY0",Buttons:buttons,Axes:[]float64{0.3,-0.4},POV:-1}}
+    if !deviceBindingDown("DEVICE:JOY0:BUTTON:0",dev) ||
+       deviceBindingDown("DEVICE:JOY0:BUTTON:1",dev) ||
+       !deviceBindingDown("DEVICE:JOY0:BUTTON:2",dev) ||
+       !deviceBindingDown("DEVICE:JOY0:BUTTON:5",dev) {
+        t.Fatal("joystick button indices 0,1,2,5 were not handled independently")
+    }
+    if !deviceBindingDown("DEVICE:JOY0:AXIS:0:+",dev) && deviceBindingDown("DEVICE:JOY0:AXIS:0:-",dev){
+        t.Fatal("joystick axis sign inverted")
+    }
+}
+
+func TestProportionalAnalogJoystickRespectsProfile(t *testing.T) {
+    dev:=[]device{{ID:"JOY0",Buttons:[]bool{false},Axes:[]float64{0.3},POV:-1}}
+    p:=runtimeProfile{
+        AnalogAxis:"DEVICE:JOY0:AXIS:0", AnalogAxisCenter:0,
+        AnalogDeadzone:0.08, AnalogCurve:1, AnalogFullScale:100, AnalogOutputPct:100,
+    }
+    got:=analogFromDevices(p,dev)
+    if got<0.299 || got>0.301 {t.Fatalf("30%% stick should request 30%% angle, got %v",got)}
+    p.AnalogInvert=true
+    got=analogFromDevices(p,dev)
+    if got>-.299 || got<-.301 {t.Fatalf("inverted joystick should request -30%%, got %v",got)}
+    p.AnalogInvert=false
+    p.AnalogDeadzone=.4
+    if got=analogFromDevices(p,dev);got!=0 {t.Fatalf("deadzone ignored: %v",got)}
+}
+
+func TestCommonAdditionalKeyboardBindings(t *testing.T) {
+    for _, key := range []string{"KEY:Backspace","KEY:Tab","KEY:Home","KEY:NumpadAdd","KEY:NumpadDivide"} {
+        if codeToVK(key)==0 {t.Fatalf("captured key %s unsupported",key)}
+    }
+}
