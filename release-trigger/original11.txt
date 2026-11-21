@@ -1,0 +1,11 @@
+EssieuPilot Original.11 controlled prerelease trigger, 21 Nov 2026.
+User authorized correction and update publication.
+Fixes:
+- Original.10 wrong comparison of SCS telemetry schema version to ATS game version 1.62.
+- Steam game autodiscovery including D:\Program Files (x86)\Steam and libraryfolders.vdf.
+- Secure automatic replacement only if manually installed Original.10 DLL exact public SHA-256.
+- Explicit folder selection fallback and clear error log.
+Automated Windows safety and installer build success on:
+https://github.com/ximisch/EssieuPilot/actions/runs/44904121104
+https://github.com/ximisch/EssieuPilot/actions/runs/44904162148
+No claim that physical wheel steering or Convoi synchronizes in ATS. Solo only.
