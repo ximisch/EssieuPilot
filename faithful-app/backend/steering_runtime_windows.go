@@ -334,6 +334,7 @@ func startSteeringRuntime(s *server) func() {
 		var observedTelemetry telemetryResult
 		var lastTelemetryAt time.Time
 		var plannedAngle float64
+		var plannedAvailable bool
 		var lastPlanTick time.Time
 		var profiles runtimeProfiles
 		var lastProfileRead time.Time
@@ -415,6 +416,7 @@ func startSteeringRuntime(s *server) func() {
 				lastApprovedCommand = ""
 				lastApprovedTime = time.Time{}
 				plannedAngle = 0
+				plannedAvailable = false
 				history = nil
 			}
 			manual = retainManualOnFocusChange(manual, gameRunning)
@@ -540,6 +542,7 @@ func startSteeringRuntime(s *server) func() {
 						axle, active.AutoCenter)
 					snapshot.PlannedAngleDegrees = math.Round(plannedAngle*100)/100
 					snapshot.PlannedAngleValid = true
+					plannedAvailable = true
 					snapshot.ObservedSpeedKMH = speed
 					snapshot.ObservedSpeedValid = speedValid
 					if !speedValid {
@@ -550,6 +553,13 @@ func startSteeringRuntime(s *server) func() {
 				} else {
 					snapshot.PlannedAngleReason = "Groupes d'essieux incompatibles avec une commande physique unique par remorque"
 				}
+			}
+			if !foreground && plannedAvailable && gameRunning && found {
+				// Show last calculated angle on returning to Diagnostic.
+				// Not a live wheel-angle measurement; input is paused.
+				snapshot.PlannedAngleDegrees = math.Round(plannedAngle*100)/100
+				snapshot.PlannedAngleValid = true
+				snapshot.PlannedAngleReason = "Dernière consigne calculée en jeu (hors physique) ; entrée suspendue"
 			}
 			snapshot.ManualArmed = manual
 			snapshot.SteeringInputAllowed = steeringInstructionAllowed(manual, gameRunning, foreground, found)
