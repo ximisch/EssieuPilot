@@ -71,7 +71,9 @@ body.sv3 .modern-page[data-page=inputs]>.modern-info-panel{grid-column:1/-1!impo
 body.sv3 .modern-page[data-page=viewer]>.visualize{grid-column:1/span 5!important;order:1}
 body.sv3 .modern-page[data-page=viewer]>.modern-viewer-layout{grid-column:6/-1!important;order:2;display:block!important;min-width:0}
 body.sv3 .modern-page[data-page=viewer] .modern-3d-stage{height:clamp(260px,40vh,550px)!important}
-body.sv3 .modern-page[data-page=viewer] .modern-viewer-side{display:none!important}
+body.sv3 .modern-page[data-page=viewer] .modern-viewer-layout{display:grid!important;grid-template-columns:minmax(0,1.5fr) minmax(220px,1fr)!important;align-content:start}
+body.sv3 .modern-page[data-page=viewer] .modern-viewer-side{display:block!important;min-width:0}
+body.sv3 .modern-page[data-page=viewer] .modern-3d-panel{min-width:0}
 body.sv3 .modern-page[data-page=diagnostics]>.modern-diagnostic{grid-column:1/span 6!important}
 body.sv3 .modern-page[data-page=diagnostics]>.device-section-moved{grid-column:7/-1!important}
 body.sv3 .modern-page[data-page=updates]>.essieupilot-utility-panel{grid-column:1/-1!important}
@@ -84,3 +86,11 @@ body.sv3 .modern-page .canvas-area,body.sv3 .modern-page .modern-3d-stage{min-wi
 @media(max-width:1110px){body.sv3 .sv-hero-row{grid-template-columns:1fr}body.sv3 .sv-status-column{grid-template-columns:1fr 1fr;grid-template-rows:1fr}body.sv3 .sv-metrics{grid-template-columns:repeat(3,minmax(0,1fr))}body.sv3 .sv-metric{border-bottom:1px solid #255468}body.sv3 .modern-page[data-page=inputs]>.binding-panel,body.sv3 .modern-page[data-page=inputs]>.controls,body.sv3 .modern-page[data-page=viewer]>.visualize,body.sv3 .modern-page[data-page=viewer]>.modern-viewer-layout,body.sv3 .modern-page[data-page=diagnostics]>.modern-diagnostic,body.sv3 .modern-page[data-page=diagnostics]>.device-section-moved{grid-column:1/-1!important}}
 @media(max-width:830px){body.sv3 .sidebar.modern-sidebar{flex-basis:66px!important;width:66px!important;min-width:66px!important;padding:12px 5px!important}body.sv3 .sidebar .identity>div:not(.brand-mark),body.sv3 .studio-nav .modern-nav-item>span:not(.modern-nav-icon){display:none!important}body.sv3 .studio-nav .modern-nav-item{justify-content:center!important;padding:8px 4px!important}body.sv3 .main.modern-main{padding:12px 9px 30px!important}body.sv3 .sv-status-column{grid-template-columns:1fr}body.sv3 .sv-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}body.sv3 .modern-page[data-page=trailers]>.sv-profiles,body.sv3 .modern-page[data-page=trailers]>.axle-panel,body.sv3 .modern-page[data-page=trailers]>.settings{grid-column:1/-1!important;grid-row:auto!important}}
 @media(prefers-reduced-motion:reduce){body.sv3 *{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+body.sv3 .modern-page[data-page=trailers]>.sv-action-tools{grid-column:1/-1!important;grid-row:5!important;display:flex;flex-wrap:wrap;gap:9px;justify-content:flex-end;background:#071a27;padding:13px 14px;border:1px solid #137f99;border-radius:6px}
+body.sv3 .sv-action-tools .btn{font-size:12px;padding:10px 15px}
+@media(max-width:1150px){
+ body.sv3 .modern-page[data-page=viewer] .modern-viewer-layout{grid-template-columns:1fr!important}
+}
+@media(max-width:830px){
+ body.sv3 .modern-page[data-page=trailers]>.sv-action-tools{grid-row:auto!important}
+}
