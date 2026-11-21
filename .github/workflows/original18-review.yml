@@ -65,6 +65,8 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference='Stop'
+          New-Item -ItemType Directory -Force faithful-app/host/Assets | Out-Null
+          Copy-Item faithful-app/backend/web/EssieuPilot.ico faithful-app/host/Assets/EssieuPilot.ico
           dotnet build faithful-app/host/EssieuPilot.csproj -c Release
           if($LASTEXITCODE -ne 0){throw 'Windows host failed'}
       - name: Preview rendered dashboard in Edge
