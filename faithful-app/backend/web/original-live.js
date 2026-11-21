@@ -91,7 +91,7 @@
   if (diag) {
     const row = document.createElement('div');
     row.className = 'modern-diagnostic-row';
-    row.innerHTML = '<div><b>Touches configurables → canal DLL (étape 1)</b>' +
+    row.innerHTML = '<div><b>Touches configurables → commandes ATS (Original.7)</b>' +
       '<p id="epInputBridgeText">Chargement du profil enregistré…</p></div>' +
       '<span id="epInputBridgeBadge" class="modern-pending-status">VÉRIFICATION</span>';
     diag.appendChild(row);
@@ -117,7 +117,7 @@
         // switching back to the EssieuPilot Diagnostic window.
         const armed = c.manual_armed ? 'ACTIVÉ (test)' : 'DÉSACTIVÉ';
         const focus = c.ats_foreground ? 'ATS au premier plan : entrée du jeu autorisée' :
-          c.ats_running ? 'ATS lancé : clavier ignoré tant que la fenêtre ATS n’est pas reconnue' : 'ATS non lancé';
+          c.ats_running ? 'ATS lancé, mais fenêtre ATS non active : commande suspendue' : 'ATS non lancé';
         const windowsInfo = 'Détection Windows : ' + (c.input_reason || 'Non disponible') +
           ' · PID actif ' + (c.foreground_pid || '—') +
           ' / PID ATS ' + (c.ats_process_pid || '—') +
@@ -127,12 +127,22 @@
           ' · Gauche : ' + (c.left_count || 0) +
           ' · Droite : ' + (c.right_count || 0);
         const allowed = c.steering_input_allowed ?
-          'AUTORISÉ (test, sans mouvement de roue)' : 'BLOQUÉ (INACTIF)';
+          'AUTORISÉ (diagnostic uniquement)' : 'BLOQUÉ (INACTIF ou hors ATS)';
         const held = c.held_direction === 'GAUCHE' || c.held_direction === 'DROITE' ?
-          c.held_direction + ' (touche maintenue)' :
+          c.held_direction + ' · ' + (c.requested_source || 'Commande') +
+            ' · ' + Math.abs(Number(c.requested_percent || 0)).toFixed(1) + '% (maintenu)' :
           'AUCUNE (relâchée, inactive ou hors ATS)';
         const admitted = 'Gauche : ' + (c.allowed_left_count || 0) +
           ' · Droite : ' + (c.allowed_right_count || 0);
+        const analog = 'Axe analogique : détecté ' +
+          Number(c.analog_detected_percent || 0).toFixed(1) +
+          ' % · autorisé ' + Number(c.analog_authorized_percent || 0).toFixed(1) +
+          ' % · changements autorisés gauche=' + (c.analog_left_count || 0) +
+          ', droite=' + (c.analog_right_count || 0);
+        const lastAccepted = c.last_authorized_command ?
+          c.last_authorized_command + (c.last_authorized_time ?
+            ' à ' + c.last_authorized_time.slice(11,19) : '') :
+          'Aucune (mode ACTIF requis)';
         const recent = Array.isArray(c.input_history) && c.input_history.length ?
           c.input_history.slice(-5).join(' / ') : 'Aucun appui reconnu';
         const last = c.last_input ? 'Dernière commande : ' + c.last_input +
@@ -142,12 +152,14 @@
         text.textContent = 'Profil : ' + name + '\nTouches : ' + keys +
           '\nMode manuel : ' + armed + '  |  ' + focus +
           '\n' + windowsInfo +
-          '\nTouches détectées (même si inactif) : ' + counts +
-          '\nCommandes de direction : ' + allowed +
-          '\nDirection maintenue (échantillon actuel) : ' + held +
-          '\nCompteurs autorisés (uniquement ACTIF) : ' + admitted +
+          '\nCOMMANDES AUTORISÉES (ACTIF uniquement) : ' + admitted +
+          '\nAutorisation : ' + allowed +
+          '\nDirection actuelle : ' + held +
+          '\n' + analog +
+          '\nDernière commande autorisée : ' + lastAccepted +
+          '\nAppuis bruts détectés (y compris INACTIF, diagnostic seul) : ' + counts +
           '\n' + last + '\nHistorique : ' + recent +
-          '\nCanal IPC de test uniquement : aucune direction envoyée aux roues d’ATS.' +
+          '\nATTENTION : aucun ordre de direction physique envoyé à ATS dans Original.7.' +
           (uiToggleNotice ? '\n' + uiToggleNotice : '');
         badge.textContent = !c.service_running || !c.ipc_ready || !c.profile_saved ?
           'À VÉRIFIER' : c.manual_armed ? 'ACTIVÉ · TEST' : 'INACTIF · TEST';
