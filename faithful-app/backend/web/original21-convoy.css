@@ -1,0 +1,25 @@
+/* EssieuPilot Original21 — Steel Vector companion Convoi diagnostics */
+body.sv3 .ep21-convoy{
+  min-width:0;margin:12px 0 18px;padding:clamp(16px,2vw,24px);
+  border:1px solid #17768e;background:linear-gradient(135deg,#061d2b,#0a2734);
+  border-radius:12px;color:#e5f8fb;box-shadow:inset 0 1px #48e7ee30;
+}
+body.sv3 .ep21-heading{display:flex;gap:16px;justify-content:space-between;align-items:flex-start;flex-wrap:wrap}
+body.sv3 .ep21-heading small{font-weight:800;letter-spacing:.15em;color:#06dcf3}
+body.sv3 .ep21-heading h3{font-size:clamp(18px,1.5vw,23px);margin:6px 0 8px;color:#f7fdff}
+body.sv3 .ep21-heading p{color:#a9c7d2;font-size:12px;line-height:1.6;margin:0}
+body.sv3 #ep21State{font-size:12px;font-weight:700;border:1px solid #508192;border-radius:30px;padding:8px 11px;color:#c8ebf0}
+body.sv3 #ep21State[data-state=multi]{border-color:#ff9924;color:#ffb765}
+body.sv3 .ep21-values{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:18px 0}
+body.sv3 .ep21-values>div{min-width:0;display:grid;gap:8px;padding:13px;border-radius:9px;background:#051622;border:1px solid #1d5165}
+body.sv3 .ep21-values span{font-size:11px;color:#9dbcc7}
+body.sv3 .ep21-values strong{font-size:clamp(12px,1.15vw,16px);overflow-wrap:anywhere;color:#e9f9ff}
+body.sv3 .ep21-detail{color:#67dbe7;font-size:12px;line-height:1.6;overflow-wrap:anywhere}
+body.sv3 .ep21-important{padding:14px;background:#0c2030;border-left:3px solid #ff971e;border-radius:4px}
+body.sv3 .ep21-important>strong{font-size:13px}
+body.sv3 .ep21-important p{font-size:12px;line-height:1.6;color:#d0e2e8;margin:9px 0}
+body.sv3 .ep21-actions{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:15px}
+body.sv3 .ep21-actions button{border:1px solid #04d5f1;background:#078eac;border-radius:7px;padding:10px 14px;color:white;font-size:12px;font-weight:800;cursor:pointer}
+body.sv3 .ep21-actions button:hover{background:#06b4c1}
+body.sv3 .ep21-actions span{max-width:640px;color:#a3c0cb;font-size:11px;line-height:1.5}
+@media(max-width:860px){body.sv3 .ep21-values{grid-template-columns:1fr}}
