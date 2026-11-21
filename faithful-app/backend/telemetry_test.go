@@ -109,3 +109,32 @@ func TestTelemetryPausedMatchesRealHubSchema(t *testing.T) {
 		t.Fatalf("actual hub game_paused field misread or unknown wheel data invented: %+v", got)
 	}
 }
+
+func TestTrailerWheelSteeringTelemetryIsIndependentOfPhysicalCommand(t *testing.T) {
+	const snapshot = `{"type":"snapshot","game":"ats","data":{"speed_mps":0,"game_paused":false,"trailer":{"connected":true,"wheels":[{"steering":0.0291666666667},{"steering":0.0291666666667},{"steering":0}]}},"trailer_spec":{"id":"scs.lowboy","wheel_positions":[{"z":2},{"z":2.01},{"z":3}]}}`
+	srv:=httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter,r *http.Request){fmt.Fprint(w,snapshot)}))
+	defer srv.Close()
+	b:=newTelemetryBridge();defer b.close();b.endpoint=srv.URL
+	got:=b.read()
+	if !got.Connected||!got.WheelSteeringValid||len(got.WheelSteeringDegrees)!=3||
+		got.WheelSteeringDegrees[0]!=10.5||got.WheelSteeringDegrees[2]!=0||
+		got.PhysicalControl {
+		t.Fatalf("wheel telemetry incorrectly parsed or treated as physical command: %+v",got)
+	}
+}
+
+func TestTrailerWheelTelemetryNotInventedOnDetachedOrInvalidReadings(t *testing.T) {
+	for _,tc:=range []string{
+		`{"type":"snapshot","game":"ats","data":{"trailer":{"connected":false,"wheels":[{"steering":0.03}]}},"trailer_spec":{"id":"old","wheel_positions":[{"z":2}]}}`,
+		`{"type":"snapshot","game":"ats","data":{"trailer":{"connected":true,"wheels":[{"steering":0.5}]}},"trailer_spec":{"id":"current","wheel_positions":[{"z":2}]}}`,
+		`{"type":"snapshot","game":"ats","data":{"trailer":{"connected":true,"wheels":[{"steering":0.03}]}},"trailer_spec":{"id":"current","wheel_positions":[]}}`,
+	}{
+		srv:=httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter,r *http.Request){fmt.Fprint(w,tc)}))
+		b:=newTelemetryBridge();b.endpoint=srv.URL
+		got:=b.read()
+		b.close();srv.Close()
+		if got.WheelSteeringValid||len(got.WheelSteeringDegrees)>0 {
+			t.Fatalf("untrustworthy wheel motion invented from telemetry: %+v",got)
+		}
+	}
+}
