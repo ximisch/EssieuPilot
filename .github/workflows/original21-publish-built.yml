@@ -1,0 +1,71 @@
+name: EssieuPilot Original.21 — publish verified compiled Windows artifact
+on:
+  push:
+    branches: ['development/original21-convoy-observation']
+    paths:
+      - 'release-trigger/original21-publish.txt'
+permissions:
+  contents: write
+  actions: read
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - name: Download exact compiled Windows and DLL artifact
+        uses: actions/download-artifact@v4
+        with:
+          run-id: 44950087378
+          repository: ${{ github.repository }}
+          github-token: ${{ github.token }}
+          name: EssieuPilot-Original21-Steel-Vector-Convoi-Windows
+          path: release
+      - name: Verify compiled release contents
+        shell: bash
+        run: |
+          set -euo pipefail
+          find release -maxdepth 3 -type f -printf '%p (%s bytes)\n'
+          for f in Installer_EssieuPilot.exe EssieuPilot_Interface_Originale_ZIP.zip EssieuPilotATS.dll LISEZ_MOI_DLL_ORIGINAL21.txt; do
+            test -s "release/$f" || { echo "Missing validated build: $f"; exit 1; }
+          done
+          test "$(stat -c%s release/Installer_EssieuPilot.exe)" -gt 50000000
+          test "$(stat -c%s release/EssieuPilotATS.dll)" -gt 100000
+          unzip -t release/EssieuPilot_Interface_Originale_ZIP.zip | tail -4
+          sha256sum release/Installer_EssieuPilot.exe release/EssieuPilotATS.dll
+      - name: Publish distinct Original21 test prerelease
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG=v2.0.0-original.21
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Tag already published; refusing overwrite"; exit 1
+          fi
+          cat > release-notes.md <<'NOTES'
+          # EssieuPilot — Original 21 · diagnostic Convoi
+          Version technique 2.0.0-original.21, basée sur Original 20 Steel Vector ; le nom de l'application reste EssieuPilot.
+
+          **Développement incrémental, sans promesse de braquage physique en Convoi** :
+          - Détection partielle des indices multijoueur ATS via un canal officiel du SDK. Un décalage de temps non nul constitue un indice, mais zéro n'est pas une preuve du mode Solo.
+          - Tableau de bord Convoi en lecture seule dans Diagnostique, avec export du rapport JSON.
+          - Lorsqu'un indice multijoueur est observé, la DLL suspend son braquage expérimental jusqu'au redémarrage d'ATS pour ne pas modifier des remorques distantes.
+          - Installation protégée de la DLL native et conservation de l'interface Steel Vector et des profils d'Original 20.
+          - Le mode Solo continue sur sa logique précédente, sans changement des offsets ATS ni des commandes de braquage.
+          - Aucun fichier SCS nouveau. ATS 1.62.2.2 exact uniquement pour les tests DLL.
+
+          **Non validé** : braquage physique local en Convoi, partage des mouvements aux autres joueurs, prise en charge TruckersMP. Cette version est une étape de diagnostic, pas la compatibilité multijoueur complète.
+
+          Test recommandé : sauvegarde des profils, ATS fermé à l'installation. Vérifier gauche/droite en Solo, rejoindre un Convoi privé avec les mêmes mods, ouvrir Diagnostique > Compatibilité multijoueur et exporter EssieuPilot_Convoi_Original21.json. Après un indice Convoi, redémarrer ATS avant de tester le braquage Solo.
+          NOTES
+          gh release create "$TAG" \
+            release/Installer_EssieuPilot.exe \
+            release/EssieuPilot_Interface_Originale_ZIP.zip \
+            release/EssieuPilotATS.dll \
+            release/LISEZ_MOI_DLL_ORIGINAL21.txt \
+            --repo "$GITHUB_REPOSITORY" \
+            --target 069902d2828746e110f4c3fe9b1272858d3735ee \
+            --title "EssieuPilot — Original 21 · Convoi expérimental (diagnostic)" \
+            --prerelease \
+            --notes-file release-notes.md
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY"
