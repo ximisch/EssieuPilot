@@ -111,7 +111,7 @@ c=change(c,'        ImGui::NewFrame();',
          '        ImGui::NewFrame();\n        if (auto tracker=ep_tracker.lock()) tracker->ensure_bridge_hook();')
 core.write_text(c,encoding='utf-8')
 m=game.read_text(encoding='utf-8-sig')
-m=change(m,'#include "scssdk.h"', '#include "scssdk.h"\n#include <cstring>\n#include <amtrucks/scssdk_ats.h>')
+m=change(m,'#include "scssdk.h"', '#include "scssdk.h"\n#include <cstring>\n#include <amtrucks/scssdk_ats.h>\n#include "EssieuPilotBridge.hpp"')
 m=change(m,'    auto* init_params = static_cast< const scs_telemetry_init_params_v100_t* >( params );',
 '''    if (params == nullptr || (version != SCS_TELEMETRY_VERSION_1_01 && version != SCS_TELEMETRY_VERSION_1_00))
         return SCS_RESULT_unsupported;
@@ -124,6 +124,11 @@ m=change(m,'    auto* init_params = static_cast< const scs_telemetry_init_params
         return SCS_RESULT_unsupported;
     HANDLE bridge=OpenFileMappingW(FILE_MAP_READ,FALSE,L"Local\\EssieuPilotSteeringV1");
     if(!bridge)return SCS_RESULT_unsupported;
-    CloseHandle(bridge);''')
+    CloseHandle(bridge);
+    // Read-only evidence of DLL initialization in the matching game.
+    // No physics steering hook is activated by this probe.
+    epbridge::announceSdkReady(
+        SCS_GET_MAJOR_VERSION(init_params->common.game_version),
+        SCS_GET_MINOR_VERSION(init_params->common.game_version));''')
 game.write_text(m,encoding='utf-8')
 print('R&D bridge patched; no install or release permitted without ATS 1.62 verification.')
