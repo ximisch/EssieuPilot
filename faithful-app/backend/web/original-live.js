@@ -174,6 +174,17 @@
           if(observed && matches.length===1){
             selectionNotice.textContent='ATS : '+observed+' → reconnaissance automatique : '+matches[0].name;
             selectionChoice.value=matches[0].id;
+            // Reflect the same automatically selected preset in the visible
+            // Studio. Do not interrupt or overwrite unsaved user edits.
+            if(typeof getProfile==='function' && typeof renderAll==='function' &&
+               typeof selectedTrailerId!=='undefined' && typeof dirty==='boolean' && !dirty){
+              const mainProfile=getProfile();
+              if(mainProfile?.id===p.id && selectedTrailerId!==matches[0].id){
+                selectedTrailerId=matches[0].id;
+                selectedAxleId=null;
+                renderAll();
+              }
+            }
           }else if(observed && matches.length>1){
             selectionNotice.textContent='Identifiant ATS partagé par plusieurs configurations : association ambiguë, essai physique bloqué.';
           }else if(observed){
