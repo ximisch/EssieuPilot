@@ -57,6 +57,12 @@
       if(cls)e.className=cls;if(content!==undefined)e.textContent=content;return e;
     };
     const board=make('div','sv-dashboard');
+    const headline=make('header','sv-headline');
+    const headingText=make('div');
+    headingText.append(make('h1','','// Tableau de bord'),
+      make('p','','Vue d’ensemble du système, de la remorque active et des essieux.'));
+    headline.append(headingText);
+
     const heroRow=make('div','sv-hero-row');
     const frame=make('div','sv-photo-frame');
     const image=make('img');
@@ -95,7 +101,7 @@
     action.append(make('span','sv-note','Les valeurs indiquées sont observées ou simulées : elles ne prouvent pas le mouvement physique des roues.'));
     const launch=make('button','sv-launch','▶ Ouvrir la simulation');
     launch.type='button';launch.dataset.modernGo='viewer';action.append(launch);
-    board.append(heroRow,metrics,action);
+    board.append(headline,heroRow,metrics,action);
     dashboard.append(board);
     const text=(id,value)=>{
       const n=document.getElementById(id);
@@ -136,6 +142,10 @@
       one('.sv-value',axles).textContent=known?(active?'Commande active':'Inactifs'):'État inconnu';
       one('.sv-hint',axles).textContent=detail;
       drawValues();
+    }
+    const preview=new URLSearchParams(window.location.search).get('sv-preview');
+    if(['trailers','inputs','viewer','diagnostics','updates','about'].includes(preview)){
+      requestAnimationFrame(()=>document.querySelector('[data-modern-tab="'+preview+'"]')?.click());
     }
     drawValues();refreshStatuses();
     const schedule=setInterval(refreshStatuses,2500);
