@@ -1,0 +1,8 @@
+Original.16 user-authorized release trigger — 2026-11-21.
+UI: 7-menu EssieuPilot-only branded dashboard, compact panoramic lowboy home, fixed sidebar with independent content scrolling.
+Two stacked physical indicators on dashboard upper right: ATS online/offline/unknown and ESSIEUX ACTIFS / INACTIFS / INCONNUS, backed by /api/status and /api/control-link. Active requires native IPC packet sent and DLL callback with manual steering armed and ATS running.
+All saved profile, trailer, per-axle settings, native trailer association, physical steering cap (0–60) and calibration (35–120) on one Mes remorques page. Seven generic template types with user-selected counts, NO false autodetection of axle types or overwrite of profiles.
+Commands, 2D/3D simulation, Diagnostic with JSON and advanced logs, Updates GitHub SHA-256 updater, About with ATS help. Original.16 technical version only in update/about/diagnostics, application name always EssieuPilot.
+No change to physical-hook DLL internals vs Original.15; ATS 1.62.2.2 exact solo experimental with explicit consent, no Convoi claim, angles not accurately measured.
+Original.16 installer mock SUCCESS in Github Actions.
+Publish only if all Windows UI, Go, host, telemetry, C++ DLL, installer, signature and release checks pass.
