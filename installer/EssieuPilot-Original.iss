@@ -168,18 +168,39 @@ begin
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
-var ResultCode: Integer; Params: String;
+var ResultCode: Integer; Params: String; SelectedATS: String;
+    ScriptPath: String; PowerShellPath: String; Success: Boolean;
 begin
   if (CurStep = ssPostInstall) and IsTaskSelected('rnddll') then begin
+    ScriptPath := ExpandConstant('{app}\ATS-Plugin\Manage-ATS-Physical-Test.ps1');
+    PowerShellPath := ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe');
     Params := '-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' +
-      ExpandConstant('{app}\ATS-Plugin\Manage-ATS-Physical-Test.ps1') +
-      '" -Action Install';
+      ScriptPath + '" -Action Install';
     if IsTaskSelected('rndphysics') then Params := Params + ' -AllowPhysicalTest';
-    if (not Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'),
-      Params, '', SW_SHOW, ewWaitUntilTerminated, ResultCode)) or (ResultCode <> 0) then
-      MsgBox('EssieuPilot est installé, mais la DLL de test n’a pas pu être installée dans ATS.' +
-        Chr(13) + Chr(10) + 'Le gestionnaire a refusé la version du jeu, un fichier inconnu ou un conflit.' +
-        Chr(13) + Chr(10) + 'Aucun autre plugin ATS n’a été modifié.', mbError, MB_OK);
+
+    Success := Exec(PowerShellPath, Params, '', SW_SHOW,
+      ewWaitUntilTerminated, ResultCode) and (ResultCode = 0);
+
+    if not Success then begin
+      SelectedATS := '';
+      if MsgBox('La copie automatique de la DLL ATS n’a pas réussi.' +
+        Chr(13) + Chr(10) + 'Le jeu peut se trouver dans une bibliothèque Steam personnalisée,' +
+        ' ou une ancienne DLL peut être présente.' +
+        Chr(13) + Chr(10) + 'Veux-tu sélectionner une fois le dossier « American Truck Simulator » pour réessayer ?',
+        mbConfirmation, MB_YESNO) = IDYES then begin
+        if BrowseForFolder('Choisis le dossier American Truck Simulator contenant bin\win_x64\amtrucks.exe',
+          SelectedATS, False) then
+          Success := Exec(PowerShellPath, Params + ' -GamePath "' + SelectedATS + '"',
+            '', SW_SHOW, ewWaitUntilTerminated, ResultCode) and (ResultCode = 0);
+      end;
+    end;
+    if not Success then
+      MsgBox('EssieuPilot est installé, mais PAS sa DLL ATS.' +
+        Chr(13) + Chr(10) + 'Consulte : ' +
+        ExpandConstant('{localappdata}\EssieuPilot\ATS-Physical-Test\dernier-echec-installation.txt') +
+        Chr(13) + Chr(10) + 'Ferme ATS et assure-toi que la DLL présente est bien celle d’Original.10.' +
+        Chr(13) + Chr(10) + 'Aucune autre DLL ni mod ATS n’a été écrasé.',
+        mbError, MB_OK);
   end;
 end;
 #endif
