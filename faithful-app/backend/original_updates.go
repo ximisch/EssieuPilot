@@ -68,7 +68,7 @@ func selectOriginalUpdate(releases []originalRelease, installed int) *originalCa
     return latest
 }
 
-func currentOriginalBuild() int { return 8 }
+func currentOriginalBuild() int { return 9 }
 
 func checkOriginalUpdate(ctx context.Context) (*originalCandidate,error) {
     ctx,cancel:=context.WithTimeout(ctx,20*time.Second)
