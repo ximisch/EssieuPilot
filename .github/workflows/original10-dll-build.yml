@@ -49,7 +49,12 @@ jobs:
           if($LASTEXITCODE -ne 0){throw 'Native DLL compilation failed'}
           $dll=Get-ChildItem physical-build -Recurse -File -Filter 'EssieuPilotATS.dll' | Select-Object -First 1
           if(-not $dll){throw 'Native DLL absent'}
-          $exports=(& dumpbin /exports $dll.FullName | Out-String)
+          $vswhere=Join-Path ([Environment]::GetFolderPath('ProgramFilesX86')) 'Microsoft Visual Studio/Installer/vswhere.exe'
+          $vs=(& $vswhere -latest -property installationPath).Trim()
+          $dumpbin=Get-ChildItem -Path (Join-Path $vs 'VC/Tools/MSVC') -Recurse -Filter dumpbin.exe -File |
+            Where-Object {$_.FullName -match 'Hostx64\\x64'} | Select-Object -First 1
+          if(-not $dumpbin){throw 'MSVC dumpbin unavailable'}
+          $exports=(& $dumpbin.FullName /exports $dll.FullName | Out-String)
           if(-not $exports.Contains('scs_telemetry_init') -or -not $exports.Contains('scs_telemetry_shutdown')){throw 'Missing SCS SDK plugin exports'}
           New-Item -ItemType Directory -Force 'ci-artifacts'|Out-Null
           Copy-Item -LiteralPath $dll.FullName 'ci-artifacts/EssieuPilotATS.dll'
