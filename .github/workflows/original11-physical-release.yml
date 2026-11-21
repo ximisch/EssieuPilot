@@ -2,7 +2,7 @@ name: EssieuPilot Original.11 — essai physique ATS 1.62.2.2 (prerelease opt-in
 
 on:
   push:
-    branches: ['development/original11-physical-test']
+    branches: ['development/original11-api-installer-fix']
     paths:
       - 'release-trigger/original11.txt'
   workflow_dispatch:
