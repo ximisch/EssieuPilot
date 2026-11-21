@@ -301,7 +301,7 @@ func startSteeringRuntime(s *server) func() {
 	// Only a manually launched R&D executable with this *exact* opt-in may
 	// send an experimental steering command. Never enable in release builds
 	// before ATS binary offsets and actual wheel movement are verified.
-	physicalResearchOptIn := os.Getenv("ESSIEUPILOT_UNSAFE_ATS162_TEST") == "I_ACCEPT_CRASH_RISK"
+	physicalResearchOptIn := physicalResearchBuildMode == "true" && os.Getenv("ESSIEUPILOT_UNSAFE_ATS162_TEST") == "I_ACCEPT_CRASH_RISK"
 	bridge, bridgeErr := newPhysicalSteeringBridge()
 	if bridgeErr != nil {
 		log.Printf("EssieuPilot IPC preparation unavailable: %v", bridgeErr)
