@@ -10,3 +10,5 @@ Evidence before packaging:
 Publication is explicitly experimental and solo-only.
 No evidence yet of physical wheel motion and no Convoy multiplayer synchronization.
 Never identify this version as physically validated or stable.
+
+Retest Original.10 prerelease after fixing expected /api/updates version to Original.10.
