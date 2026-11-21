@@ -1,4 +1,4 @@
-# EssieuPilot Original.16 : installation/retrait gérés de la DLL expérimentale.
+# EssieuPilot Original.17 : installation/retrait gérés de la DLL expérimentale.
 # Jamais de remplacement d'une DLL tiers ou mod non possédé par EssieuPilot.
 param(
  [ValidateSet('Install','Remove','Status')][string]$Action='Status',
@@ -22,6 +22,7 @@ $knownManualOriginal12='06f7e7a06e9b29d40ca4ac69f9af3babd4536995cbafca69d266c128
 $knownManualOriginal13='26accf51c187f0ac39f17f78e7526c2f865aa41e71fd9919d914212e1acd2f4e'
 $knownManualOriginal14='0255614aa5414ee4b8830d9535b4bdf6d389e3860ac8fdb3c514bfbdb15af998'
 $knownManualOriginal15='93a7af37c4dbe05963b081d134bb82a4dfdeb9d19f31269bdd39056e45b36715'
+$knownManualOriginal16='42613972be0f2973dcbaba28ea05492848dc1a05bc2d42868110de9579440448'
 if(!$StateDir){$StateDir=Join-Path $env:LOCALAPPDATA 'EssieuPilot\ATS-Physical-Test'}
 if(!$ConsentPath){$ConsentPath=Join-Path $env:APPDATA 'EssieuPilot-OriginalTest\physical-test-consent.txt'}
 $record=Join-Path $StateDir 'installed.json'
@@ -114,7 +115,7 @@ try{
   if($file.PSIsContainer -or ($file.Attributes -band [IO.FileAttributes]::ReparsePoint)){throw 'Fichier cible non régulier'}
   $currentHash=sha $target
   $knownManualMigration=($Action -eq 'Install' -and $null -eq $old -and
-    ($currentHash -ceq $knownManualOriginal10 -or $currentHash -ceq $knownManualOriginal11 -or $currentHash -ceq $knownManualOriginal12 -or $currentHash -ceq $knownManualOriginal13 -or $currentHash -ceq $knownManualOriginal14 -or $currentHash -ceq $knownManualOriginal15))
+    ($currentHash -ceq $knownManualOriginal10 -or $currentHash -ceq $knownManualOriginal11 -or $currentHash -ceq $knownManualOriginal12 -or $currentHash -ceq $knownManualOriginal13 -or $currentHash -ceq $knownManualOriginal14 -or $currentHash -ceq $knownManualOriginal15 -or $currentHash -ceq $knownManualOriginal16))
   if(-not $knownManualMigration -and
      ($null -eq $old -or $currentHash -cne [string]$old.sha256)){
     throw 'DLL existante non gérée/modifiée : aucune écriture autorisée'
@@ -138,7 +139,7 @@ try{
  if($m.schema -ne 1 -or $m.game -ne 'ats' -or $m.game_series -ne '1.62' -or
     @($m.files).Count -ne 1 -or [string]$m.files[0].name -cne $name -or
     [string]$m.files[0].sha256 -cnotmatch '^[0-9a-f]{64}$' -or
-    [string]$m.module_version -notmatch 'original\.16' -or
+    [string]$m.module_version -notmatch 'original\.17' -or
     (sha $src) -cne [string]$m.files[0].sha256){throw 'Paquet DLL invalide ou non vérifié SHA-256'}
  New-Item -ItemType Directory -Path $plugindir,$StateDir -Force|Out-Null
  $backup=Join-Path $StateDir ('rollback-'+[guid]::NewGuid().ToString('N'))
