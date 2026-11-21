@@ -1,0 +1,12 @@
+EssieuPilot Original.14 user-requested experimental prerelease trigger.
+Scope:
+- Physical degrees scale independent from per-axle max, default reference 60 nominal degrees at ATS normalized 1, with user-adjustable per-trailer calibration and finite/unsafe range checks.
+- Exact unique ATS trailer ID stored once on user confirmation in Diagnostic; automatically recall any saved preset when that ID returns, including other trailer types and mods if exposed by SCS telemetry. Unknown/duplicate IDs fail closed; no hardcoded 3 test trailers.
+- Existing per-axle parameters preserved but physical DLL still applies one normalized steering scalar per attached trailer; not independent physical steering yet.
+- Persistent original14 JSON with selection status and normalization (wheel readings zero in user's Original.13 test, cannot claim true angle accuracy).
+- Keep same native memory hook DLL implementation as Original.13, same ATS 1.62.2.2 exact SHA and explicit SOLO crash-risk consent. Unsafe Convoi/TruckersMP not supported.
+- Safe updater and DLL install; user consent and existing profiles preserved.
+- Standalone installer mock completed successfully in GitHub Actions for Original.14.
+Ship only after Go/Windows/UI/native DLL/installer checks all succeed; actual angle calibration still needs user test in ATS.
+
+Release-check retry: preserve exact original Studio app.js byte-for-byte, update inherited Original.13 UI verification for Original.14 association selector. Keep original GUI test strict.

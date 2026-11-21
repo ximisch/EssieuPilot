@@ -1,0 +1,13 @@
+'use strict';
+const assert = require('node:assert/strict');
+const logic = require('./web/steering_logic.js');
+const axle = {enabled:true,max_angle:35,turn_rate:14,center_rate:7,ratio:1,reversed:false,current_angle:0};
+let output = logic.updateAxle(axle,{manual:true,mode:'stop',steer:1,analogActive:false,analogSteer:0,dt:1,autoCenter:true,speedKmh:0,speedGain:1});
+assert.ok(Math.abs(output.angle-1.4)<1e-8);
+axle.current_angle=output.angle;
+output = logic.updateAxle(axle,{manual:false,mode:'stop',steer:0,analogActive:false,analogSteer:0,dt:1,autoCenter:true,speedKmh:0,speedGain:1});
+assert.ok(Math.abs(output.angle-1.4)<1e-8,'at standstill, angle held');
+axle.current_angle=output.angle;
+output = logic.updateAxle(axle,{manual:false,mode:'forward',steer:0,analogActive:false,analogSteer:0,dt:1,autoCenter:true,speedKmh:10,speedGain:1});
+assert.ok(output.angle<1.4,'center while moving');
+console.log('Original steering simulation logic: functional unit tests OK (not ATS physical steering)');

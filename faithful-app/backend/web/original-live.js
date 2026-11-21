@@ -1,0 +1,494 @@
+'use strict';
+// Exact EssieuPilot 1.6.2 design: ONE ATS lamp in the existing top quick-status card.
+// The original telemetry-only bottom tile and the experimental pilot tile are removed.
+// Steering will get its own tab only after future real in-game testing.
+(function () {
+  const aside = document.querySelector('.side-bottom');
+  if (aside) {
+    aside.querySelector('.connection')?.remove();
+    aside.querySelector('#originalPhysicalPilotStatus')?.remove();
+  }
+  const quick = document.querySelector('.modern-side-quick');
+  const lamp = quick?.querySelector('.modern-small-dot');
+  const title = quick?.querySelector('strong');
+  const detail = quick?.querySelector('small');
+  const gameStat = document.getElementById('modernGameState');
+  if (!quick || !lamp || !title || !detail) return;
+
+  function setLamp(color) {
+    lamp.style.background = color;
+    lamp.style.boxShadow = '0 0 0 4px ' + color + '24';
+  }
+  function showStatus(running) {
+    if (running === true) {
+      setLamp('#33db83');
+      title.textContent = 'ATS · EN LIGNE';
+      detail.textContent = 'American Truck Simulator détecté';
+    } else if (running === false) {
+      setLamp('#f18a5b');
+      title.textContent = 'ATS · HORS LIGNE';
+      detail.textContent = 'Jeu fermé ou non détecté';
+    } else {
+      setLamp('#e1ab6b');
+      title.textContent = 'ATS · ÉTAT INDISPONIBLE';
+      detail.textContent = 'Vérification du jeu impossible';
+    }
+    if (gameStat) {
+      gameStat.textContent = running === true ? '● ATS EN LIGNE' :
+        running === false ? '● ATS HORS LIGNE' : '● ÉTAT INDISPONIBLE';
+    }
+  }
+  let busy = false;
+  async function refresh() {
+    if (busy) return;
+    busy = true;
+    try {
+      const response = await fetch('/api/status', {cache: 'no-store'});
+      if (!response.ok) throw new Error('Status service unavailable');
+      const data = await response.json();
+      if (typeof data.game_running !== 'boolean')
+        throw new Error('Invalid game status payload');
+      showStatus(data.game_running);
+    } catch (_) {
+      // Read failures are unknown, not evidence that ATS has stopped.
+      showStatus(null);
+    } finally {
+      busy = false;
+    }
+  }
+  // Synchronize the existing original UI "Activer le braquage manuel" button
+  // with the controller's SAFE test-mode state. This is not a physical command.
+  // The original 1.6.2 app still handles local simulation and its appearance.
+  let uiToggleNotice = '';
+  let syncingManualFromBackend = false;
+  let localManualPendingUntil = 0;
+  document.addEventListener('click', (event) => {
+    const control = event.target.closest?.('[data-action="toggle-manual"]');
+    if (!control || syncingManualFromBackend) return;
+    // Give the existing button's API request time to commit before syncing
+    // from the authoritative game-input controller.
+    localManualPendingUntil = Date.now() + 1500;
+    // The original app click handler updates the button's .enabled class
+    // synchronously; wait until it completes before reading the new state.
+    setTimeout(async () => {
+      const toggle = document.getElementById('toggleManual');
+      const enabled = !!toggle?.classList.contains('enabled');
+      try {
+        const response = await fetch('/api/control-link/mode', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-ATS-Token': document.body.dataset.token
+          },
+          body: JSON.stringify({enabled})
+        });
+        const result = await response.json();
+        uiToggleNotice = response.ok ? 'Bouton de l’interface synchronisé avec le contrôleur de test.' :
+          'Bouton de simulation uniquement : ' + (result.error || 'contrôleur non disponible');
+      } catch (error) {
+        uiToggleNotice = 'Le bouton de simulation n’a pas pu joindre le contrôleur : ' + error.message;
+      }
+    }, 0);
+  }, true);
+
+  // Stage 1 is displayed in the existing Diagnostic tab, not a new Pilotage tab.
+  const diag = document.querySelector('.modern-diagnostic');
+  if (diag) {
+    // Original.13: arbitrary saved trailer configurations, no special-casing
+    // 3 presets and no silent choice of an incorrect physical trailer.
+    const selectionRow=document.createElement('div');
+    selectionRow.className='modern-diagnostic-row';
+    const selectionDetails=document.createElement('div');
+    const selectionHeading=document.createElement('b');
+    selectionHeading.textContent='Original.15 · Limite physique de 0 à 60° et association automatique (SOLO)';
+    const selectionHelp=document.createElement('p');
+    selectionHelp.textContent='Attelle une remorque dans ATS puis associe-la une seule fois à sa configuration. À chaque changement de remorque, EssieuPilot recherche son identifiant ATS exact et recharge automatiquement le réglage associé. En cas d’identifiant inconnu ou partagé par plusieurs configurations, aucune sélection automatique risquée. Les essieux indépendants restent sauvegardés, mais la DLL ne reçoit actuellement qu’un angle global par remorque.';
+    const selectionChoice=document.createElement('select');
+    selectionChoice.id='epPhysicalTrailerChoice';
+    selectionChoice.setAttribute('aria-label','Configuration de remorque à utiliser pour l’essai physique');
+    selectionChoice.style.marginRight='8px';
+    const selectionButton=document.createElement('button');
+    selectionButton.type='button';
+    selectionButton.className='btn btn-primary';
+    selectionButton.textContent='Associer la remorque ATS à cette configuration';
+    const physicalLimitLabel=document.createElement('label');
+    physicalLimitLabel.textContent='Limite de braquage physique (0 à 60°) : ';
+    physicalLimitLabel.style.marginLeft='8px';
+    const physicalLimitInput=document.createElement('input');
+    physicalLimitInput.type='number';
+    physicalLimitInput.min='0';physicalLimitInput.max='60';physicalLimitInput.step='0.5';
+    physicalLimitInput.id='epPhysicalSteeringLimitDegrees';
+    physicalLimitInput.value='35';
+    physicalLimitInput.style.width='72px';
+    physicalLimitLabel.appendChild(physicalLimitInput);
+    const physicalLimitHelp=document.createElement('p');
+    physicalLimitHelp.textContent='0° demande une direction nulle (roues droites), sans division par zéro. La limite ne peut pas dépasser le maximum configuré dans les essieux. C’est une consigne nominale : son amplitude réelle dans ATS reste à vérifier.';
+    const calibrationLabel=document.createElement('label');
+    calibrationLabel.textContent='Étalonnage avancé (référence pour 100 % ATS, 35 à 120°, non mesurée) : ';
+    calibrationLabel.style.marginLeft='8px';
+    const calibrationInput=document.createElement('input');
+    calibrationInput.type='number';
+    calibrationInput.min='35';calibrationInput.max='120';calibrationInput.step='1';
+    calibrationInput.value='60';
+    calibrationInput.id='epPhysicalCalibrationReference';
+    calibrationInput.style.width='72px';
+    calibrationLabel.appendChild(calibrationInput);
+    const calibrationHelp=document.createElement('p');
+    calibrationHelp.textContent='Par défaut 60° = 100 % ATS. Exemple : limite 15° → 25 % ATS ; limite 35° → 58,3 %. Ces pourcentages sont une approximation, pas une mesure des angles des roues. Pour calibrer plus précisément, ajuste la référence après des essais visuels.';
+    const selectionNotice=document.createElement('p');
+    selectionNotice.id='epPhysicalTrailerChoiceStatus';
+    selectionDetails.append(selectionHeading,selectionHelp,selectionChoice,physicalLimitLabel,physicalLimitHelp,calibrationLabel,calibrationHelp,selectionButton,selectionNotice);
+    selectionRow.appendChild(selectionDetails);
+    diag.appendChild(selectionRow);
+    async function refreshSelection(){
+      if(selectionChoice.dataset.busy==='1')return;
+      try {
+        const res=await fetch('/api/config',{cache:'no-store'});
+        if(!res.ok)throw new Error('Profils indisponibles');
+        const config=await res.json();
+        const p=config.profiles?.find(x=>x.id===config.active_id);
+        if(!p)return;
+        // Do not replace the value while the user is interacting.
+        const previous=selectionChoice.value;
+        const options=p.trailers||[];
+        const key=options.map(t=>t.id+'|'+t.name).join(';')+'::'+p.id;
+        if(selectionChoice.dataset.key!==key){
+          selectionChoice.innerHTML='';
+          const choose=document.createElement('option');
+          choose.value='';
+          choose.textContent='— Choisir une remorque —';
+          selectionChoice.appendChild(choose);
+          for(const t of options){
+            const item=document.createElement('option');
+            item.value=t.id;
+            item.textContent=t.name+' ('+(t.axles?.filter(a=>a.enabled).length||0)+' essieux actifs)';
+            selectionChoice.appendChild(item);
+          }
+          selectionChoice.dataset.key=key;
+          selectionChoice.value=options.some(t=>t.id===previous)?previous:(p.physical_selected_trailer_id||'');
+        }
+        if(!selectionChoice.dataset.chosen){
+          selectionChoice.value=p.physical_selected_trailer_id||'';
+          const selected=options.find(t=>t.id===selectionChoice.value)||options[0];
+          if(document.activeElement!==calibrationInput) {
+            calibrationInput.value=String(selected?.physical_full_scale_degrees||60);
+          }
+          if(document.activeElement!==physicalLimitInput) {
+            const activeMax=Math.max(0,...(selected?.axles||[]).filter(a=>a.enabled).map(a=>Number(a.max_angle)||0));
+            physicalLimitInput.value=String(selected?.physical_angle_limit_degrees??activeMax);
+          }
+          const telemetryResponse=await fetch('/api/telemetry',{cache:'no-store'});
+          let observed=null;
+          if(telemetryResponse.ok) {
+            const telemetry=await telemetryResponse.json();
+            if(telemetry.connected && Array.isArray(telemetry.trailers) &&
+                telemetry.trailers.length===1 && telemetry.trailers[0]?.id) {
+              observed=telemetry.trailers[0].id;
+            }
+          }
+          const matches=observed?options.filter(t=>String(t.ats_match_key||'').toLowerCase()===observed.toLowerCase()):[];
+          if(observed && matches.length===1){
+            selectionNotice.textContent='ATS : '+observed+' → reconnaissance automatique : '+matches[0].name;
+            selectionChoice.value=matches[0].id;
+            // Reflect the same automatically selected preset in the visible
+            // Studio. Do not interrupt or overwrite unsaved user edits.
+            if(typeof getProfile==='function' && typeof renderAll==='function' &&
+               typeof selectedTrailerId!=='undefined' && typeof dirty==='boolean' && !dirty){
+              const mainProfile=getProfile();
+              if(mainProfile?.id===p.id && selectedTrailerId!==matches[0].id){
+                selectedTrailerId=matches[0].id;
+                selectedAxleId=null;
+                renderAll();
+              }
+            }
+          }else if(observed && matches.length>1){
+            selectionNotice.textContent='Identifiant ATS partagé par plusieurs configurations : association ambiguë, essai physique bloqué.';
+          }else if(observed){
+            selectionNotice.textContent='ATS détecte : '+observed+'. Choisis une configuration puis clique Associer.';
+          }else{
+            selectionNotice.textContent='Attelle une remorque et lance ATS pour enregistrer son identifiant. Sélection manuelle toujours possible.';
+          }
+        }
+      }catch(e){selectionNotice.textContent='Configuration indisponible : '+e.message}
+    }
+    selectionChoice.addEventListener('change',async()=>{
+      selectionChoice.dataset.chosen='1';
+      try{
+        const response=await fetch('/api/config',{cache:'no-store'});
+        const config=await response.json();
+        const p=config.profiles?.find(x=>x.id===config.active_id);
+        const selected=p?.trailers?.find(t=>t.id===selectionChoice.value);
+        if(selected){
+          calibrationInput.value=String(selected.physical_full_scale_degrees||60);
+          const activeMax=Math.max(0,...selected.axles.filter(a=>a.enabled).map(a=>Number(a.max_angle)||0));
+          physicalLimitInput.value=String(selected.physical_angle_limit_degrees??activeMax);
+        }
+      }catch(_){}
+    });
+    selectionButton.addEventListener('click',async()=>{
+      if(selectionChoice.dataset.busy==='1')return;
+      if(!selectionChoice.value){selectionNotice.textContent='Choisis une remorque avant de confirmer.';return}
+      selectionChoice.dataset.busy='1';selectionButton.disabled=true;
+      try {
+        const res=await fetch('/api/config',{cache:'no-store'});
+        if(!res.ok)throw new Error('Lecture du profil impossible');
+        const config=await res.json();
+        const p=config.profiles.find(x=>x.id===config.active_id);
+        if(!p||!p.trailers?.some(x=>x.id===selectionChoice.value))throw new Error('Configuration modifiée : actualise la page');
+        const chosen=p.trailers.find(t=>t.id===selectionChoice.value);
+        const calibration=Number(calibrationInput.value);
+        const configuredMax=Math.max(0,...chosen.axles.filter(x=>x.enabled).map(x=>Number(x.max_angle)||0));
+        const physicalLimit=Number(physicalLimitInput.value);
+        if(!Number.isFinite(physicalLimit)||physicalLimit<0||physicalLimit>60||
+           physicalLimit>configuredMax){
+          throw new Error('Limite physique invalide : entre 0° et 60°, et pas supérieure à la limite des essieux.');
+        }
+        if(!Number.isFinite(calibration)||calibration<35||calibration>120||calibration<configuredMax){
+          throw new Error('Référence de calibrage invalide (35° à 120°, et au moins autant que l’angle maximal configuré).');
+        }
+        const observedRes=await fetch('/api/telemetry',{cache:'no-store'});
+        let observedID='';
+        if(observedRes.ok){
+          const t=await observedRes.json();
+          if(t.connected && Array.isArray(t.trailers) && t.trailers.length===1)
+            observedID=String(t.trailers[0].id||'').trim();
+        }
+        if(!observedID)throw new Error('Aucune remorque identifiée dans ATS : démarre le jeu avec une remorque attelée avant de créer l’association automatique.');
+        const collision=p.trailers.find(t=>t.id!==chosen.id &&
+          String(t.ats_match_key||'').toLowerCase()===observedID.toLowerCase());
+        if(collision)throw new Error('Identifiant ATS déjà associé à « '+collision.name+' ». Il faut d’abord corriger cette association pour éviter un conflit.');
+        chosen.ats_match_key=observedID;
+        chosen.physical_full_scale_degrees=calibration;
+        chosen.physical_angle_limit_degrees=physicalLimit;
+        p.physical_selected_trailer_id=chosen.id;
+        const result=await fetch('/api/config',{
+          method:'POST',
+          headers:{'Content-Type':'application/json','X-ATS-Token':document.body.dataset.token},
+          body:JSON.stringify(config)
+        });
+        if(!result.ok)throw new Error('Enregistrement refusé');
+        // Keep original in-memory app profile in sync for a later user Save.
+        if(typeof getProfile==='function'){
+          const appProfile=getProfile();
+          if(appProfile?.id===p.id){
+            appProfile.physical_selected_trailer_id=p.physical_selected_trailer_id;
+            const appTrailer=appProfile.trailers?.find(t=>t.id===chosen.id);
+            if(appTrailer){
+              appTrailer.ats_match_key=chosen.ats_match_key;
+              appTrailer.physical_full_scale_degrees=chosen.physical_full_scale_degrees;
+              appTrailer.physical_angle_limit_degrees=chosen.physical_angle_limit_degrees;
+            }
+          }
+        }
+        selectionChoice.dataset.chosen='';
+        selectionNotice.textContent='Association sauvegardée : '+observedID+' → '+chosen.name+'. Limite physique : '+physicalLimit+'° ; étalonnage : '+calibration+'°. À tester en SOLO.';
+      }catch(e){selectionNotice.textContent='Erreur : '+e.message}
+      finally {selectionChoice.dataset.busy='';selectionButton.disabled=false;}
+    });
+    refreshSelection();setInterval(refreshSelection,4000);
+    // Original.13: download the DURABLE last-in-game report. It survives
+    // Alt+Tab and stopping ATS and cannot enable any physical steering.
+    const physicalReportRow = document.createElement('div');
+    physicalReportRow.className = 'modern-diagnostic-row';
+    const reportText = document.createElement('div');
+    const reportHeading = document.createElement('b');
+    reportHeading.textContent = 'Original.15 · Diagnostic automatique du braquage physique';
+    const reportHelp = document.createElement('p');
+    reportHelp.textContent = 'Effectue tes essais avec ATS au premier plan, puis télécharge ici le dernier rapport. Il reste disponible après avoir quitté le jeu. Chemin local : %LOCALAPPDATA%\\EssieuPilot\\ATS-Physical-Test\\diagnostic-original15.json. Aucun braquage réel n’est encore validé.';
+    const reportLink = document.createElement('a');
+    reportLink.href = '/api/physical-diagnostic';
+    reportLink.download = 'EssieuPilot_Diagnostic_Physique_Original15.json';
+    reportLink.textContent = 'Télécharger le diagnostic physique (JSON)';
+    reportLink.style.textDecoration = 'underline';
+    reportLink.style.fontWeight = 'bold';
+    reportText.append(reportHeading, reportHelp, reportLink);
+    physicalReportRow.appendChild(reportText);
+    diag.appendChild(physicalReportRow);
+    // Original.9 : identifie la remorque depuis la télémétrie SCS,
+    // puis retrouve le profil associé sans piloter ni modifier le jeu.
+    const autoRow = document.createElement('div');
+    autoRow.className = 'modern-diagnostic-row';
+    autoRow.innerHTML = '<div><b>Remorque et profil reconnus automatiquement (Original.9)</b>' +
+      '<p id="epTrailerDetectionText">Vérification de la télémétrie ATS…</p></div>' +
+      '<span id="epTrailerDetectionBadge" class="modern-pending-status">LECTURE</span>';
+    diag.appendChild(autoRow);
+    let detectingTrailer = false;
+    async function refreshTrailerDetection() {
+      if (detectingTrailer) return;
+      detectingTrailer = true;
+      const output = document.getElementById('epTrailerDetectionText');
+      const badge = document.getElementById('epTrailerDetectionBadge');
+      try {
+        const [telemetryRes, profilesRes] = await Promise.all([
+          fetch('/api/telemetry', {cache:'no-store'}),
+          fetch('/api/config', {cache:'no-store'})
+        ]);
+        if (!telemetryRes.ok || !profilesRes.ok) throw new Error('Service de lecture indisponible');
+        const telemetry = await telemetryRes.json();
+        const config = await profilesRes.json();
+        const trailer = telemetry.connected && Array.isArray(telemetry.trailers) ?
+          telemetry.trailers[0] : null;
+        if (!trailer || !trailer.id) {
+          output.textContent = 'Aucune remorque reconnue : ' +
+            (telemetry.note || 'ATS et le SCS Telemetry Hub doivent être actifs.') +
+            ' Aucun braquage physique envoyé.';
+          badge.textContent = 'NON DÉTECTÉE';
+        } else {
+          const id = String(trailer.id).toLowerCase();
+          const profiles = Array.isArray(config.profiles) ? config.profiles : [];
+          const selected = profiles.find(p =>
+            String(p.match_key || '').toLowerCase() === id && String(p.match_key || '') !== '');
+          const fallback = profiles.find(p => p.id === config.active_id &&
+            !String(p.match_key || '').trim());
+          const axleCount = Number(trailer.estimated_axles || 0);
+          const axleDescription = axleCount > 0 ?
+            axleCount + ' essieux estimés (direction non connue)' : 'nombre d’essieux inconnu';
+          const name = String(trailer.name || trailer.id);
+          output.textContent = 'Remorque : ' + name + ' (' + trailer.id + ') · ' + axleDescription +
+            '\n' + (selected ? 'Profil associé : ' + String(selected.name || selected.id) :
+              fallback ? 'Profil par défaut : ' + String(fallback.name || fallback.id) +
+                ' (non associé spécialement)' :
+              'Aucun profil associé. Utilise Remorques → Associer la remorque détectée à ce profil.') +
+            '\nTélémétrie : lecture uniquement ; aucun essieu piloté physiquement.';
+          output.style.whiteSpace = 'pre-line';
+          badge.textContent = selected ? 'PROFIL RECONNU' : 'REMORQUE DÉTECTÉE';
+        }
+      } catch (error) {
+        output.textContent = 'Détection non disponible : ' + error.message;
+        badge.textContent = 'INDISPONIBLE';
+      } finally {
+        detectingTrailer = false;
+      }
+    }
+    refreshTrailerDetection();
+    setInterval(refreshTrailerDetection, 2000);
+
+    const row = document.createElement('div');
+    row.className = 'modern-diagnostic-row';
+    row.innerHTML = '<div><b>Touches configurables → commandes et DLL ATS (Original.13 - diagnostic)</b>' +
+      '<p id="epInputBridgeText">Chargement du profil enregistré…</p></div>' +
+      '<span id="epInputBridgeBadge" class="modern-pending-status">VÉRIFICATION</span>';
+    diag.appendChild(row);
+    let checking = false;
+    async function checkBindings() {
+      if (checking) return;
+      checking = true;
+      const text = document.getElementById('epInputBridgeText');
+      const badge = document.getElementById('epInputBridgeBadge');
+      try {
+        const res = await fetch('/api/control-link', {cache:'no-store'});
+        if (!res.ok) throw new Error('Aucune réponse du contrôleur');
+        const c = await res.json();
+        // Original 2D/3D app stores `manual` internally. Trigger its own
+        // existing button (without a second API request) to keep it aligned
+        // with the ATS-side state when F8/joystick toggled while ATS focused.
+        const manualButton = document.getElementById('toggleManual');
+        if (manualButton && Date.now() >= localManualPendingUntil &&
+            manualButton.classList.contains('enabled') !== !!c.manual_armed) {
+          syncingManualFromBackend = true;
+          try { manualButton.click(); } finally { syncingManualFromBackend = false; }
+        }
+        if (c.dll_confirmed)
+          throw new Error('Aucun test de braquage physique n’a encore été validé dans ATS');
+        const name = c.profile_name || 'Aucun profil enregistré';
+        const keys = [
+          'Activation : ' + (c.toggle_binding || 'Non définie'),
+          'Gauche : ' + (c.left_binding || 'Non définie'),
+          'Droite : ' + (c.right_binding || 'Non définie')
+        ].join(' · ');
+        // Persistent mode state and raw press counters are retained after
+        // switching back to the EssieuPilot Diagnostic window.
+        const armed = c.manual_armed ? 'ACTIVÉ (test)' : 'DÉSACTIVÉ';
+        const focus = c.ats_foreground ? 'ATS au premier plan : entrée du jeu autorisée' :
+          c.ats_running ? 'ATS lancé, mais fenêtre ATS non active : commande suspendue' : 'ATS non lancé';
+        const windowsInfo = 'Détection Windows : ' + (c.input_reason || 'Non disponible') +
+          ' · PID actif ' + (c.foreground_pid || '—') +
+          ' / PID ATS ' + (c.ats_process_pid || '—') +
+          ' · codes clavier gauche=' + (c.left_virtual_key || '—') +
+          ', droite=' + (c.right_virtual_key || '—');
+        const counts = 'Activation : ' + (c.activation_count || 0) +
+          ' · Gauche : ' + (c.left_count || 0) +
+          ' · Droite : ' + (c.right_count || 0);
+        const allowed = c.steering_input_allowed ?
+          'AUTORISÉ (diagnostic uniquement)' : 'BLOQUÉ (INACTIF ou hors ATS)';
+        const held = c.held_direction === 'GAUCHE' || c.held_direction === 'DROITE' ?
+          c.held_direction + ' · ' + (c.requested_source || 'Commande') +
+            ' · ' + Math.abs(Number(c.requested_percent || 0)).toFixed(1) + '% (maintenu)' :
+          'AUCUNE (relâchée, inactive ou hors ATS)';
+        const admitted = 'Gauche : ' + (c.allowed_left_count || 0) +
+          ' · Droite : ' + (c.allowed_right_count || 0);
+        const analog = 'Axe analogique : détecté ' +
+          Number(c.analog_detected_percent || 0).toFixed(1) +
+          ' % · autorisé ' + Number(c.analog_authorized_percent || 0).toFixed(1) +
+          ' % · changements autorisés gauche=' + (c.analog_left_count || 0) +
+          ', droite=' + (c.analog_right_count || 0);
+        const dllProbe = 'CHARGEMENT DLL ATS : ' +
+          (c.physical_dll_loaded ?
+            ('CONFIRMÉ · version signalée ' + (c.physical_dll_game_version || '?') +
+             (c.physical_dll_sdk_accepted ? ' · SDK ATS reconnu' : ' · VERSION NON RECONNUE')) :
+            'NON CONFIRMÉ') +
+          ' · ' + (c.physical_dll_probe_message || 'Aucun diagnostic disponible');
+        const experimental = 'ENVOI PHYSIQUE EXPÉRIMENTAL : ' +
+          (!c.physical_experiment_opt_in ? 'DÉSACTIVÉ par défaut' :
+           c.physical_packet_sent ?
+             ('PAQUET ENVOYÉ (' + Number(c.physical_packet_normalized || 0).toFixed(3) +
+             ') · retour de la DLL : ' + (c.physical_callback_ack ?
+               ('callback exécuté, age ' + (c.physical_callback_ack_age_ms || 0) + ' ms') :
+               'NON CONFIRMÉ')) :
+             'AUTORISATION ABSENTE : vérifier ACTIF, ATS au premier plan, télémétrie, remorque et DLL');
+        const physical = 'BRAQUAGE RÉEL : NON VALIDÉ · ' +
+          (c.physical_validation_status || 'Aucune observation physique ATS');
+        const plan = c.planned_angle_valid ?
+          'Angle prévu HORS JEU : ' + Number(c.planned_angle_degrees || 0).toFixed(2) +
+            '° · ' + (c.planned_angle_reason || 'Non appliqué') :
+          'Angle prévu : indisponible — ' + (c.planned_angle_reason || 'ATS hors jeu');
+        const speed = c.observed_speed_valid ?
+          'Vitesse ATS mesurée : ' + Number(c.observed_speed_kmh || 0).toFixed(1) + ' km/h' :
+          'Vitesse ATS indisponible (pas de recentrage calculé)';
+        const actualWheels = c.observed_wheel_steering_valid &&
+          Array.isArray(c.observed_wheel_steering_degrees) ?
+          'ANGLES MESURÉS PAR ATS (roues de remorque) : ' +
+          c.observed_wheel_steering_degrees.slice(0,20).map(n=>Number(n).toFixed(1)+'°').join(' / ') +
+          ' · lecture SDK, pas preuve visuelle' :
+          'ANGLES MESURÉS PAR ATS : données de direction des roues indisponibles';
+        const lastAccepted = c.last_authorized_command ?
+          c.last_authorized_command + (c.last_authorized_time ?
+            ' à ' + c.last_authorized_time.slice(11,19) : '') :
+          'Aucune (mode ACTIF requis)';
+        const recent = Array.isArray(c.input_history) && c.input_history.length ?
+          c.input_history.slice(-5).join(' / ') : 'Aucun appui reconnu';
+        const last = c.last_input ? 'Dernière commande : ' + c.last_input +
+          (c.last_event_time ? ' à ' + c.last_event_time.slice(11,19) : '') :
+          'Aucune commande enregistrée';
+        text.style.whiteSpace = 'pre-line';
+        text.textContent = 'Profil : ' + name + '\nTouches : ' + keys +
+          '\nMode manuel : ' + armed + '  |  ' + focus +
+          '\n' + windowsInfo +
+          '\nCOMMANDES AUTORISÉES (ACTIF uniquement) : ' + admitted +
+          '\nAutorisation : ' + allowed +
+          '\nDirection actuelle : ' + held +
+          '\n' + analog +
+          '\nDernière commande autorisée : ' + lastAccepted +
+          '\n' + plan + '\n' + speed + '\n' + actualWheels + '\n' + dllProbe + '\n' + experimental + '\n' + physical +
+          '\nAppuis bruts détectés (y compris INACTIF, diagnostic seul) : ' + counts +
+          '\n' + last + '\nHistorique : ' + recent +
+          '\nATTENTION : mode R&D, usage expérimental non validé : un ACK indique seulement un appel DLL, jamais la preuve du mouvement des roues.' +
+          (uiToggleNotice ? '\n' + uiToggleNotice : '');
+        badge.textContent = !c.service_running || !c.ipc_ready || !c.profile_saved ?
+          'À VÉRIFIER' : c.manual_armed ? 'ACTIVÉ · TEST' : 'INACTIF · TEST';
+        badge.className = 'modern-pending-status';
+      } catch (error) {
+        text.textContent = 'Test des touches indisponible : ' + error.message;
+        badge.textContent = 'INDISPONIBLE';
+      } finally {
+        checking = false;
+      }
+    }
+    checkBindings();
+    setInterval(checkBindings, 500);
+  }
+
+  showStatus(null);
+  refresh();
+  setInterval(refresh, 1000);
+})();

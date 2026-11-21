@@ -1,0 +1,274 @@
+name: EssieuPilot — original 1.6.2 interface with native window and updates (test)
+
+on:
+  push:
+    branches: ['development/original-ui-port']
+    paths:
+      - 'faithful-app/**'
+      - 'installer/EssieuPilot-Original.iss'
+      - '.github/workflows/faithful-original-release.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: essieupilot-original-test-release
+  cancel-in-progress: true
+
+jobs:
+  physical-bridge-static-validation:
+    runs-on: windows-2022
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout pinned EssieuPilot research sources
+        uses: actions/checkout@v4
+        with:
+          ref: development/ats-integration
+          path: research
+
+      - name: Checkout pinned MIT trailer steering reference
+        uses: actions/checkout@v4
+        with:
+          repository: dariowouters/ts-extra-utilities
+          ref: 41b307496960732571de8e43100adba75cd115a1
+          path: upstream-ts-extra
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Check research sources, version guard and apply physical bridge
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          if ((git -C upstream-ts-extra rev-parse HEAD).Trim() -ne '41b307496960732571de8e43100adba75cd115a1') {throw 'Upstream commit mismatch'}
+          python research/integration/bridge/patch_upstream.py upstream-ts-extra
+          if($LASTEXITCODE -ne 0){throw 'Physical bridge patch failed'}
+          $src=Get-Content -Raw upstream-ts-extra/src/main.cpp
+          if(-not $src.Contains('SCS_GET_MINOR_VERSION') -or -not $src.Contains('EssieuPilotSteeringV1')) {throw 'ATS version gate or IPC bridge absent'}
+          Write-Host 'Physical bridge patched from audited pinned source (NOT live ATS validation)'
+
+      - name: Compile native x64 DLL and test IPC without ATS
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          cmake -S upstream-ts-extra -B upstream-build -G 'Visual Studio 17 2022' -A x64
+          if($LASTEXITCODE -ne 0){throw 'Native DLL configure failed'}
+          cmake --build upstream-build --config Release --parallel 2
+          if($LASTEXITCODE -ne 0){throw 'Native DLL compile failed'}
+          $dll=Get-ChildItem upstream-build -Recurse -Filter 'ts-extra-utilities.dll' | Select-Object -First 1
+          if(-not $dll){throw 'Native research DLL not generated'}
+          Write-Host "Research DLL compiled: $($dll.Length) bytes, SHA256=$((Get-FileHash $dll.FullName -Algorithm SHA256).Hash)"
+          cmake -S research/integration/bridge/smoke -B bridge-smoke -G 'Visual Studio 17 2022' -A x64
+          if($LASTEXITCODE -ne 0){throw 'IPC smoke configure failed'}
+          cmake --build bridge-smoke --config Release
+          if($LASTEXITCODE -ne 0){throw 'IPC smoke compilation failed'}
+          & 'bridge-smoke/Release/bridge_smoke.exe'
+          if($LASTEXITCODE -ne 0){throw 'IPC smoke failed'}
+          Write-Host 'PASS: compile + IPC test. NO ATS 1.62 game validation; unsafe DLL is not published.'
+
+  package:
+    needs: physical-bridge-static-validation
+    runs-on: windows-2022
+    timeout-minutes: 45
+    steps:
+      - name: Checkout faithful original UI
+        uses: actions/checkout@v4
+
+      - name: Go 1.23
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.23.2'
+
+      - name: .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Check original UI remains authentic and not redesigned
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          foreach($f in @('index.html','styles.css','modern.css','app.js','steering_logic.js','logo.png','hero_reference.jpg')) {
+            $original=(Get-FileHash "original-ui-reference/$f" -Algorithm SHA256).Hash
+            $rebuilt=(Get-FileHash "faithful-app/backend/web/$f" -Algorithm SHA256).Hash
+            if($original -ne $rebuilt) {throw "Original interface changed unexpectedly: $f"}
+          }
+          # Exactly one intentional change in modern.js: do not override the ATS process
+          # game status with the telemetry SDK connection status.
+          $source=[IO.File]::ReadAllText("original-ui-reference/modern.js")
+          $actual=[IO.File]::ReadAllText("faithful-app/backend/web/modern.js")
+          $old="    if(status)status.textContent=connected?'● Connecté (lecture)':'● Non connecté';"
+          $fixed="    // Ne jamais écraser le voyant ATS du jeu : sa source est /api/status, pas la télémétrie SCS."
+          if($source.Split([string[]]@($old),[StringSplitOptions]::None).Length -ne 2) {throw 'Unexpected original telemetry renderer'}
+          if($actual -cne $source.Replace($old,$fixed)) {throw 'Unexpected redesign in modern.js'}
+          $live=[IO.File]::ReadAllText("faithful-app/backend/web/original-live.js")
+          foreach($needle in @("aside.querySelector('.connection')?.remove()","aside.querySelector('#originalPhysicalPilotStatus')?.remove()","title.textContent = 'ATS · EN LIGNE'","title.textContent = 'ATS · HORS LIGNE'","fetch('/api/status'")) {
+            if(-not $live.Contains($needle)) {throw "Original ATS status correction absent: $needle"}
+          }
+          node --check faithful-app/backend/web/original-live.js
+          if($LASTEXITCODE -ne 0) {throw 'Original status script JS check failed'}
+          $runtime=[IO.File]::ReadAllText('faithful-app/backend/steering_runtime_windows.go')
+          if(-not $runtime.Contains('epUser32.NewProc("GetAsyncKeyState")')) {throw 'Windows keyboard input binding does not use user32.dll'}
+          if($runtime.Contains('bridge.publish(true')) {throw 'Unsafe physical DLL steering must stay disabled in stage 1'}
+          if(-not $runtime.Contains('bridge.publish(false')) {throw 'Neutral IPC disabled packet missing'}
+          if(-not $live.Contains("fetch('/api/control-link'")) {throw 'Configurable binding diagnostic missing'}
+          Write-Host 'PASS: original UI unchanged except documented status sync, only top ATS lamp remains'
+
+      - name: Test Go backend, update channel safety, compile
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          New-Item -ItemType Directory -Force 'out' | Out-Null
+          Push-Location 'faithful-app/backend'
+          try {
+            Get-ChildItem -Filter '*.go' | ForEach-Object {
+              & gofmt -w $_.FullName
+              if($LASTEXITCODE -ne 0){throw "gofmt failed: $($_.Name)"}
+            }
+            go test -v ./...
+            if($LASTEXITCODE -ne 0){throw 'Backend tests failed'}
+            go build -trimpath -o ../../out/EssieuPilotBackend.exe .
+            if($LASTEXITCODE -ne 0){throw 'Backend build failed'}
+          } finally {Pop-Location}
+          if(-not(Test-Path 'out/EssieuPilotBackend.exe')){throw 'Go backend absent'}
+
+      - name: Compile Windows host with original UI and check real form creation
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          New-Item -ItemType Directory -Force 'faithful-app/host/Assets' | Out-Null
+          Copy-Item faithful-app/backend/web/EssieuPilot.ico faithful-app/host/Assets/EssieuPilot.ico
+          dotnet publish faithful-app/host/EssieuPilot.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true --output out
+          if($LASTEXITCODE -ne 0){throw 'Host compile failed'}
+          if(-not(Test-Path 'out/EssieuPilot.exe')){throw 'Native Windows executable absent'}
+          & .\out\EssieuPilot.exe --ui-smoke
+          if($LASTEXITCODE -ne 0){throw 'Original native window did not open'}
+          Write-Host 'PASS: WinForms host with original interface opens'
+
+      - name: Test original HTTP interface and live status endpoint on Windows
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $p=Start-Process -FilePath (Resolve-Path 'out/EssieuPilotBackend.exe').Path -PassThru -NoNewWindow -RedirectStandardOutput 'ready.txt' -RedirectStandardError 'backend-errors.txt'
+          try {
+            $ready=$null
+            for($i=0;$i -lt 60;$i++){
+              Start-Sleep -Milliseconds 300
+              if(Test-Path ready.txt) {
+                $match=Select-String -Path ready.txt -Pattern '^READY http://127\.0\.0\.1:[0-9]+/' | Select-Object -First 1
+                if($match) {$ready=([string]$match.Line).Substring(6);break}
+              }
+              if($p.HasExited){throw 'Backend quit during startup'}
+            }
+            if(-not $ready){throw 'Backend HTTP endpoint not ready'}
+            $web=Invoke-WebRequest -Uri $ready -UseBasicParsing
+            if($web.StatusCode -ne 200 -or -not $web.Content.Contains('modern.css') -or -not $web.Content.Contains('original-live.js')){
+              throw 'Original interface HTML not served correctly'
+            }
+            $status=Invoke-RestMethod -Uri ($ready+'api/status')
+            if($null -eq $status.game_running -or $null -eq $status.steering_ack){
+              throw 'ATS dual status API invalid'
+            }
+            Start-Sleep -Milliseconds 450
+            $control=Invoke-RestMethod -Uri ($ready+'api/control-link')
+            if(-not $control.service_running -or -not $control.ipc_ready -or $control.physical_control_enabled -or $control.dll_confirmed){
+              throw 'Controller missing, IPC not ready, or unsafe physical flag enabled'
+            }
+            $token=[regex]::Match($web.Content,'data-token="([0-9a-f]{64})"').Groups[1].Value
+            if(-not $token){throw 'Could not extract local anti-CSRF token for profile update test'}
+            $profile=Invoke-RestMethod -Uri ($ready+'api/config')
+            $profile.profiles[0].toggle_key='KEY:F12'
+            $profile.profiles[0].left_key='KEY:KeyJ'
+            $profile.profiles[0].right_key='KEY:KeyK'
+            $payload=$profile|ConvertTo-Json -Depth 100
+            Invoke-RestMethod -Uri ($ready+'api/config') -Method Post -Headers @{'X-ATS-Token'=$token} -ContentType 'application/json; charset=utf-8' -Body ([Text.Encoding]::UTF8.GetBytes($payload)) | Out-Null
+            $updated=$false
+            for($i=0;$i -lt 20;$i++){
+              Start-Sleep -Milliseconds 150
+              $control=Invoke-RestMethod -Uri ($ready+'api/control-link')
+              if($control.toggle_binding -eq 'KEY:F12' -and $control.left_binding -eq 'KEY:KeyJ' -and $control.right_binding -eq 'KEY:KeyK'){$updated=$true;break}
+            }
+            if(-not $updated){throw 'Custom profile key changes did not reach controller without DLL reconfiguration'}
+            if($control.physical_control_enabled){throw 'Unsafe physical steering enabled during key test'}
+            Write-Host 'PASS: GUI saved F12/J/K keys were applied dynamically by input controller; IPC neutral'
+            $up=Invoke-RestMethod -Uri ($ready+'api/updates')
+            if($up.version -ne '2.0.0-original.7' -or -not $up.feed_configured){
+              throw 'In-app update service not configured'
+            }
+            Write-Host 'PASS: Original HTML, /api/status, /api/control-link and /api/updates on Windows'
+          } finally {
+            if(-not $p.HasExited){Stop-Process -Id $p.Id -Force}
+          }
+
+      - name: Build isolated Windows installer and ZIP backup
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          choco install innosetup -y --no-progress
+          if($LASTEXITCODE -ne 0){throw 'Inno Setup missing'}
+          $iscc=Join-Path ([Environment]::GetFolderPath('ProgramFilesX86')) 'Inno Setup 6\ISCC.exe'
+          New-Item -ItemType Directory -Force release | Out-Null
+          $env:EP_PUBLISH_DIR=(Resolve-Path out).Path
+          $env:EP_OUT_DIR=(Resolve-Path release).Path
+          $env:EP_APP_VERSION='2.0.0'
+          & $iscc 'installer/EssieuPilot-Original.iss'
+          if($LASTEXITCODE -ne 0){throw 'Installer build failed'}
+          $installer='release/Installer_EssieuPilot.exe'
+          if(-not(Test-Path $installer)){throw 'Installer missing'}
+          Compress-Archive -Path $installer -DestinationPath 'release/EssieuPilot_Interface_Originale_ZIP.zip' -CompressionLevel Optimal
+          Expand-Archive -LiteralPath 'release/EssieuPilot_Interface_Originale_ZIP.zip' -DestinationPath 'verify'
+          if((Get-FileHash $installer -Algorithm SHA256).Hash -ne (Get-FileHash 'verify/Installer_EssieuPilot.exe' -Algorithm SHA256).Hash){throw 'ZIP invalid'}
+          Get-FileHash $installer -Algorithm SHA256
+
+      - name: Upload validated Windows installer for diagnostics
+        uses: actions/upload-artifact@v4
+        with:
+          name: EssieuPilot-Original-UI-test7-Windows
+          path: |
+            release/Installer_EssieuPilot.exe
+            release/EssieuPilot_Interface_Originale_ZIP.zip
+          retention-days: 21
+
+      - name: Publish separate test version with original UI (NOT stable)
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference='Stop'
+          $tag='v2.0.0-original.7'
+          gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null
+          if($LASTEXITCODE -eq 0){throw 'Already published: refusing duplicate release'}
+          $notes=@'
+          # EssieuPilot — interface originale 1.6.2 conservée
+          
+          - Reproduction **à partir des ressources originales extraites et vérifiées de la release officielle 1.6.2** : CSS, images, navigation, tableau de bord, profils, simulation 2D/3D, commandes, menus. Aucune nouvelle maquette.
+          - Fenêtre Windows EssieuPilot native hébergeant les fichiers d'interface authentiques.
+          - **Original.7 :** clavier, boutons et joystick analogique passent par une seule porte ACTIF/INACTIF, y compris en cas de relâchement ou de touches contradictoires.
+          - **Diagnostic Original.7 :** les compteurs de direction autorisée ne bougent que lors d'une nouvelle commande en mode ACTIF ; l'axe analogique est suivi de manière proportionnelle, avec un calcul d'angle hors jeu (exemple : 30 % de 35° = 10,5°).
+          - **Préparation physique ATS :** le moteur détermine une consigne d'angle avec limite, inversion, maintien à l'arrêt et recentrage en roulant si télémétrie fiable. Ce calcul n'est PAS une mesure ni une action sur les roues.
+          - **DLL physique expérimentale :** compilation du pont C++ et tests du protocole de mémoire partagée exécutés en CI Windows ; ses offsets/vtable internes ne sont pas validés en ATS 1.62. Pas de DLL de physique installée ni de hook dangereux activé ; le véritable braquage physique est REPORTÉ si vérification en jeu nécessaire. Convoi non confirmé.
+          - **Correction Original.6 :** les touches gauche/droite sont détectées en brut mais les commandes de direction ne sont autorisées que lorsque le mode est ACTIF, ATS lancé/au premier plan et le profil enregistré. Compteurs séparés pour diagnostic et commandes autorisées.
+          - **Touches maintenues :** l'état continu GAUCHE/DROITE est lu à chaque cycle de 40 ms ; une touche maintenue vaut une seule commande continue, sans pression répétée. Les deux touches en même temps annulent la consigne et la sortie physique reste neutralisée.
+          - **Limite de sécurité :** pas d'angles mathématiquement infinis dans ATS. Durée de maintien sans limite, limite angulaire du profil appliquée seulement après validation du moteur physique.
+          - **Correction Original.5 :** le contrôleur reconnaît la fenêtre active d'ATS en comparant directement les identifiants de processus Windows. Cela évite l'échec de la méthode précédente lorsque Windows refuse l'ouverture du processus ATS.
+          - **Diagnostic enrichi :** indique si les touches sont lues, pourquoi elles seraient ignorées, les PID fenêtre active/ATS et les codes réels des touches gauche/droite. Les compteurs ne prouvent que la détection des entrées, pas un mouvement des roues.
+          - **Correction Original.4 :** le mode activé/désactivé est conservé au retour d'ATS vers l'onglet Diagnostic. L'historique indique chaque appui sur les touches gauche/droite, même quand le mode est désactivé.
+          - **Correction Original.4 :** le bouton manuel de l'interface communique avec le contrôleur en mode test via une API locale avec jeton ; les commandes de pilotage physique restent bloquées.
+          - **Diagnostic détaillé :** compteurs d'activation/gauche/droite, historique des cinq derniers événements et distinction entre la simulation et l'entrée du jeu.
+          - **Étape 1 du pilotage :** le contrôleur Windows relit le profil enregistré toutes les 250 ms et utilise les touches réassignées dans l'application, y compris clavier, manettes XInput et joysticks WinMM. La DLL ne possède aucune touche F8/F9/F10 codée en dur : elle interprétera un futur ordre de direction envoyé par mémoire partagée.
+          - **Diagnostic** dans l'onglet existant : touches du profil actif, canal IPC et dernières commandes détectées lorsque ATS est au premier plan.
+          - **Sécurité :** seuls des messages IPC désactivés (enabled=false) sont envoyés au cours de cette première étape. AUCUN braquage physique ne peut être déclenché par cette version ; compatibilité ATS 1.62 et Convoi non validée.
+          - Corrections précédentes conservées : les deux encadrés inférieurs ont été supprimés. Le voyant supérieur « ATS · EN LIGNE / HORS LIGNE » reste connecté à la détection de amtrucks.exe.
+          - Le statut du jeu dans le tableau de bord est synchronisé avec la même détection. La télémétrie SCS reste visible uniquement dans l'onglet Diagnostic et ne peut plus écraser l'état ATS.
+          - Aucun nouvel onglet de pilotage : le test des commandes est affiché dans le Diagnostic déjà présent.
+          - Page **Mises à jour** de l'interface d'origine : vérification des releases de ce seul canal d'essai, validation SHA-256, téléchargement et ouverture de l'installateur après accord.
+          - Installation test séparée, sans toucher à la version officielle 1.6.2 ou aux anciens profils.
+          - Le pilotage physique et Convoi restent NON validés ; la DLL expérimentale n'est pas installée automatiquement.
+          - Cette édition nécessite Microsoft Edge WebView2 Runtime pour héberger l'interface HTML à l'intérieur d'une seule fenêtre Windows. Le journal de démarrage se trouve dans %LOCALAPPDATA%/EssieuPilot/diagnostics/original-ui-startup.log.
+          - Compilation et tests automatisés Windows réussis. Doit encore être testé sur le PC de l'utilisateur.
+          '@
+          gh release create $tag release/Installer_EssieuPilot.exe release/EssieuPilot_Interface_Originale_ZIP.zip --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title 'EssieuPilot — joystick analogique et sécurité ACTIF/INACTIF' --prerelease --notes $notes
+          if($LASTEXITCODE -ne 0){throw 'Publication failed'}
+          gh release view $tag --repo $env:GITHUB_REPOSITORY

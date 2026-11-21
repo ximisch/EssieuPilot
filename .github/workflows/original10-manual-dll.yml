@@ -1,0 +1,81 @@
+name: EssieuPilot Original.10 — publier DLL separee pour installation manuelle (R&D)
+
+on:
+  push:
+    branches: ['development/original10-physical-test']
+    paths:
+      - 'manual-dll-trigger/Original10.txt'
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  attach-solo-dll:
+    runs-on: windows-2022
+    timeout-minutes: 15
+    steps:
+      - name: Check Original.10 is an existing prerelease
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference='Stop'
+          $r=gh release view v2.0.0-original.10 -R $env:GITHUB_REPOSITORY --json isPrerelease,tagName,assets | ConvertFrom-Json
+          if($LASTEXITCODE -ne 0 -or -not $r.isPrerelease){throw 'Only the existing Original.10 experimental release can receive this DLL'}
+          if(@($r.assets|Where-Object { $_.name -eq 'EssieuPilotATS.dll' }).Count -ne 0){throw 'Refusing to overwrite an existing standalone DLL'}
+      - name: Retrieve original, already compiled experimental DLL from successful Windows CI
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference='Stop'
+          New-Item -ItemType Directory -Force manual-dll | Out-Null
+          gh run download 44898502297 --repo $env:GITHUB_REPOSITORY --name 'EssieuPilot-Original10-ATS162-DLL-experimental' --dir manual-dll
+          if($LASTEXITCODE -ne 0){throw 'Cannot retrieve the verified original compiler artifact'}
+          $file='manual-dll/EssieuPilotATS.dll'
+          if(-not(Test-Path $file)){throw 'Expected DLL missing from original artifact'}
+          $digest=(Get-FileHash $file -Algorithm SHA256).Hash.ToUpperInvariant()
+          if($digest -ne 'A43A25738E0F07E0D58CA1331D009412490A146863AC8366D9BADED7D0E837C3'){
+            throw 'Original CI DLL SHA256 mismatch: REFUSE TO PUBLISH'
+          }
+          Write-Host "PASS SHA-256: $digest"
+          $body=@'
+          EssieuPilot Original.10 — DLL PHYSIQUE EXPERIMENTALE (SOLO UNIQUEMENT)
+          Le braquage reel n'est PAS verifie dans le jeu, risque de plantage !
+          Compatible seulement avec l'executable ATS 1.62.2.2 du test
+          SHA256 amtrucks.exe = 63ecae85a070934530d9fd971d4d56e5479f1214d7077b403f79b8981c613e08
+
+          INSTALLATION MANUELLE :
+          1. Sauvegarder les profils ATS et FERMER COMPLETEMENT LE JEU.
+          2. Placer EssieuPilotATS.dll dans :
+             Steam\steamapps\common\American Truck Simulator\bin\win_x64\plugins\
+             (creer le dossier plugins s'il n'existe pas).
+          3. NE PAS ecraser une DLL existante dont la provenance est inconnue.
+          4. La DLL sera CHARGEE mais INACTIVE par defaut : pour un test physique
+             volontaire en SOLO avec EssieuPilot Original.10, creer le fichier
+             %APPDATA%\EssieuPilot-OriginalTest\physical-test-consent.txt
+             contenant UNE LIGNE exactement : I_ACCEPT_CRASH_RISK
+             Puis relancer EssieuPilot et ATS.
+          5. Activer le mode manuel dans EssieuPilot, choisir un profil avec
+             une seule remorque physique, puis tester les commandes a l'arret.
+          6. Verifier le diagnostic et Documents\American Truck Simulator\game.log.txt.
+             Un accusé de reception DLL ne demontre PAS le mouvement des roues.
+          7. En cas de crash, FERMER ATS, supprimer EssieuPilotATS.dll et
+             physical-test-consent.txt, relancer ATS.
+
+          INTERDIT EN CONVOI : aucune synchronisation reseau implementee.
+          Aucun fichier SCS du jeu modifie. Cette DLL n'est pas signee.
+          Source : https://github.com/ximisch/EssieuPilot
+          '@
+          [IO.File]::WriteAllText((Join-Path (Resolve-Path manual-dll) 'LISEZ_MOI_DLL_ORIGINAL10.txt'),$body)
+      - name: Publish standalone DLL and safety instructions to existing prerelease
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference='Stop'
+          gh release upload v2.0.0-original.10 'manual-dll/EssieuPilotATS.dll' 'manual-dll/LISEZ_MOI_DLL_ORIGINAL10.txt' -R $env:GITHUB_REPOSITORY
+          if($LASTEXITCODE -ne 0){throw 'Failed to attach standalone DLL to existing Original.10 prerelease'}
+          gh release view v2.0.0-original.10 -R $env:GITHUB_REPOSITORY --json assets
+          if($LASTEXITCODE -ne 0){throw 'Cannot verify standalone DLL publication'}

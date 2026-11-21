@@ -1,0 +1,35 @@
+name: Restore existing configurable steering controller sources
+on:
+  push:
+    branches: ['development/original-ui-port']
+    paths:
+      - '.github/workflows/extract-steering-controller.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  extract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore and pin existing steering controller source, without enabling ATS physical hooks
+        run: |
+          set -euo pipefail
+          cat integration/go_sources.part*.b64 | tr -d '\n' | base64 -d > /tmp/steering-source.tar.xz
+          echo 'bb19be39dad57492951f20b0127de509452bbf3047f99c1bcc931c1a4e3bc1e1  /tmp/steering-source.tar.xz' | sha256sum -c -
+          mkdir -p /tmp/steering-extracted
+          tar -xJf /tmp/steering-source.tar.xz -C /tmp/steering-extracted
+          find /tmp/steering-extracted -type f -maxdepth 3 -print
+          mkdir -p faithful-app/steering-reference
+          cp /tmp/steering-extracted/steering*.go faithful-app/steering-reference/
+          cat > faithful-app/steering-reference/README.txt <<'TXT'
+          Reference source only. Original prototype tests included; not automatically
+          enabled in EssieuPilot. Do not install physical ATS DLL.
+          Extracted from sha256-verified research archive in integration/go_sources.*.
+          TXT
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add faithful-app/steering-reference/
+          git commit -m 'research: preserve prototype configurable keyboard/controller steering implementation'
+          git push origin HEAD:development/original-ui-port

@@ -1,0 +1,188 @@
+name: EssieuPilot Original.8 R&D - DLL SDK probe, Go diagnostics, IPC (NO RELEASE)
+
+on:
+  push:
+    branches: ['development/ats-integration', 'development/original8-physical']
+    paths:
+      - '.github/workflows/steering-reference-build.yml'
+      - 'integration/bridge/**'
+      - 'integration/installer/**'
+      - 'installer/EssieuPilot-Original.iss'
+      - 'faithful-app/backend/physical_probe*'
+      - 'faithful-app/backend/steering_runtime_windows.go'
+      - 'faithful-app/backend/input_link.go'
+      - 'faithful-app/backend/web/original-live.js'
+      - 'faithful-app/backend/experimental_physical_gate*'
+      - 'faithful-app/backend/physical_ack*'
+      - 'faithful-app/backend/telemetry.go'
+      - 'faithful-app/backend/telemetry_test.go'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source-build-only:
+    runs-on: windows-2022
+    timeout-minutes: 25
+    steps:
+      - name: Checkout EssieuPilot source
+        uses: actions/checkout@v4
+
+      - name: Go 1.23 for Original.8 read-only SDK probe tests
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.23.2'
+
+      - name: Validate Windows backend and read-only DLL probe parser
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          Push-Location faithful-app/backend
+          try {
+            go test -count=1 ./...
+            if($LASTEXITCODE -ne 0){ throw 'Original.8 Windows backend/probe tests failed' }
+            go build -o ../../essieu-backend-rnd.exe .
+            if($LASTEXITCODE -ne 0){ throw 'Original.8 Windows backend compilation failed' }
+          } finally {Pop-Location}
+          node --check faithful-app/backend/web/original-live.js
+          if($LASTEXITCODE -ne 0){ throw 'Diagnostic JavaScript invalid' }
+
+      - name: Test managed ATS module first-install and updates (fake DLLs only)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          & integration/installer/Test-Manage-ATS-Plugins-V2.ps1
+          if($LASTEXITCODE -ne 0){throw 'DLL update manager tests failed'}
+
+      - name: Compile original UI installer in app-only and DLL-bundled modes (MOCK FILES, no release)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $root=Join-Path $env:RUNNER_TEMP 'EP-Installer-Integration-Test'
+          $app=Join-Path $root 'app'
+          $fake=Join-Path $root 'fake-validated-dlls'
+          $out=Join-Path $root 'output'
+          New-Item -ItemType Directory -Force $app,$fake,$out|Out-Null
+          [IO.File]::WriteAllBytes((Join-Path $app 'EssieuPilot.exe'),[Text.Encoding]::UTF8.GetBytes('MOCK WINDOWS APPLICATION'))
+          [IO.File]::WriteAllBytes((Join-Path $app 'EssieuPilotBackend.exe'),[Text.Encoding]::UTF8.GetBytes('MOCK BACKEND'))
+          $names=@('EssieuPilotATS.dll','scs_telemetry_hub.dll')
+          $records=@()
+          foreach($name in $names) {
+            $path=Join-Path $fake $name
+            [IO.File]::WriteAllBytes($path,[Text.Encoding]::UTF8.GetBytes('MOCK CI DLL - NOT FOR DISTRIBUTION'))
+            $records+=@{name=$name;sha256=(Get-FileHash $path -Algorithm SHA256).Hash.ToLowerInvariant()}
+          }
+          $scs='EssieuPilot_TestOnly.scs'
+          $scsPath=Join-Path $fake $scs
+          [IO.File]::WriteAllBytes($scsPath,[Text.Encoding]::UTF8.GetBytes('FAKE TEST SCS CONTENT - NOT A GAME MOD'))
+          $mods=@(@{name=$scs;sha256=(Get-FileHash $scsPath -Algorithm SHA256).Hash.ToLowerInvariant()})
+          @{schema=1;game='ats';game_series='1.62';module_version='CI-MOCK';files=$records;mods=$mods}|ConvertTo-Json -Depth 4|
+            Set-Content -LiteralPath (Join-Path $fake 'module-manifest.json') -Encoding UTF8
+          $iscc=Join-Path ([Environment]::GetFolderPath('ProgramFilesX86')) 'Inno Setup 6\ISCC.exe'
+          if(-not (Test-Path $iscc)) {
+            choco install innosetup -y --no-progress
+            if($LASTEXITCODE -ne 0){throw 'Inno Setup install failed'}
+          }
+          if(-not (Test-Path $iscc)){throw 'Inno Setup compiler unavailable'}
+          $env:EP_PUBLISH_DIR=$app
+          $env:EP_OUT_DIR=$out
+          $env:EP_APP_VERSION='2.0.0'
+          $env:EP_VALIDATED_DLL_PAYLOAD=''
+          & $iscc 'installer/EssieuPilot-Original.iss'
+          if($LASTEXITCODE -ne 0){throw 'App-only Inno installer regressed'}
+          if(-not (Test-Path (Join-Path $out 'Installer_EssieuPilot.exe'))){throw 'No app-only installer'}
+          Remove-Item -LiteralPath (Join-Path $out 'Installer_EssieuPilot.exe')
+          $env:EP_VALIDATED_DLL_PAYLOAD=$fake
+          & $iscc 'installer/EssieuPilot-Original.iss'
+          if($LASTEXITCODE -ne 0){throw 'Bundled DLL Inno installer invalid'}
+          if(-not (Test-Path (Join-Path $out 'Installer_EssieuPilot.exe'))){throw 'No DLL-bundled installer'}
+          Write-Host 'PASS: app-only and validated DLL+SCS single installers compile. ALL payloads are FAKE and NEVER published.'
+          Remove-Item -LiteralPath $root -Recurse -Force
+
+      - name: Checkout pinned MIT steering reference (NOT a production DLL)
+        uses: actions/checkout@v4
+        with:
+          repository: dariowouters/ts-extra-utilities
+          ref: 41b307496960732571de8e43100adba75cd115a1
+          path: upstream-ts-extra
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Check provenance and steering code
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $actual=(git -C upstream-ts-extra rev-parse HEAD).Trim()
+          if ($actual -ne '41b307496960732571de8e43100adba75cd115a1') { throw 'Upstream commit changed' }
+          $src = Get-Content -Raw upstream-ts-extra/src/windows/trailer_manipulation.cpp
+          if (-not $src.Contains('set_individual_steering_fn_')) {throw 'No physical steering reference function found'}
+          if (-not $src.Contains('steering_advance_hook')) {throw 'No game automatic steering lock hook found'}
+          if (-not (Test-Path upstream-ts-extra/LICENSE.md)) {throw 'Missing license'}
+          $probe=Get-Content -Raw integration/bridge/EssieuPilotBridge.hpp
+          if (-not $probe.Contains('announceSdkReady') -or -not $probe.Contains('EssieuPilotProbeV8')) {throw 'Read-only ATS probe missing'}
+          Write-Host 'Reference code: manually steerable trailer unit, NOT a validated per-axle implementation.'
+          Write-Host 'Compiled DLL must NOT be distributed or installed until ATS 1.62 offsets and crash safety are tested.'
+
+      - name: Apply EssieuPilot IPC bridge source patch
+        shell: pwsh
+        run: |
+          python integration/bridge/patch_upstream.py upstream-ts-extra
+          if ($LASTEXITCODE -ne 0) { throw 'Reference source patch failed' }
+          $patched = Get-Content -Raw upstream-ts-extra/src/windows/trailer_manipulation.cpp
+          if (-not $patched.Contains('epbridge::read')) { throw 'Physical IPC bridge was not applied' }
+          $entry = Get-Content -Raw upstream-ts-extra/src/main.cpp
+          if (-not $entry.Contains('SCS_GET_MINOR_VERSION')) { throw 'ATS version gate missing' }
+          if (-not $entry.Contains('epbridge::announceSdkReady')) { throw 'Read-only probe announcement not injected into DLL initialization' }
+          Write-Host 'Patched physical trailer bridge from pinned MIT source (R&D only).'
+
+      - name: Configure Windows x64 native plugin
+        shell: pwsh
+        run: |
+          cmake -S upstream-ts-extra -B upstream-build -G 'Visual Studio 17 2022' -A x64
+          if ($LASTEXITCODE -ne 0) {throw 'CMake configure failed'}
+
+      - name: Compile reference bridge plugin (without executing it)
+        shell: pwsh
+        run: |
+          cmake --build upstream-build --config Release --parallel 2
+          if ($LASTEXITCODE -ne 0) {throw 'CMake build failed'}
+          $dll = Get-ChildItem upstream-build -Recurse -Filter 'ts-extra-utilities.dll' | Select-Object -First 1
+          if (-not $dll) {throw 'No DLL produced'}
+          $sha=(Get-FileHash $dll.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          Write-Host "Research binary compiled: size=$($dll.Length), sha256=$sha, path=$($dll.FullName)"
+          $env:TS_EXTRA_RESEARCH_DLL=$dll.FullName
+
+      - name: Verify Windows physical bridge IPC contract without ATS
+        shell: pwsh
+        run: |
+          cmake -S integration/bridge/smoke -B bridge-smoke-build -G 'Visual Studio 17 2022' -A x64
+          if ($LASTEXITCODE -ne 0) {throw 'IPC smoke CMake configure failed'}
+          cmake --build bridge-smoke-build --config Release
+          if ($LASTEXITCODE -ne 0) {throw 'IPC smoke compilation failed'}
+          & 'bridge-smoke-build/Release/bridge_smoke.exe'
+          if ($LASTEXITCODE -ne 0) {throw 'IPC smoke validation failed'}
+
+      - name: Archive a build report ONLY (not the executable DLL)
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force 'research-report' | Out-Null
+          @'
+          This is a STATIC compilation experiment only.
+          Original.8: SDK load/version read-only probe added; it does NOT validate ATS physical steering.
+          Source: https://github.com/dariowouters/ts-extra-utilities
+          Commit: 41b307496960732571de8e43100adba75cd115a1
+          License: MIT (upstream LICENSE.md)
+          NO ATTACHED DLL: IPC bridge compiles, but ATS 1.62 signatures/offsets still require inspection
+          and crash-safety before compiling an EssieuPilot integration for actual installation.
+          This example controls steering per trailer unit, not independently per axle.
+          No Convoi/multiplayer compatibility claims.
+          '@ | Set-Content 'research-report/README.txt'
+          Copy-Item upstream-ts-extra/LICENSE.md research-report/LICENSE.md
+
+      - name: Save research report, not a user download
+        uses: actions/upload-artifact@v4
+        with:
+          name: essieupilot-ts-extra-compatibility-research
+          path: research-report/
+          retention-days: 7
