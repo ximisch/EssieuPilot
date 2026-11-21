@@ -60,9 +60,14 @@
   // with the controller's SAFE test-mode state. This is not a physical command.
   // The original 1.6.2 app still handles local simulation and its appearance.
   let uiToggleNotice = '';
+  let syncingManualFromBackend = false;
+  let localManualPendingUntil = 0;
   document.addEventListener('click', (event) => {
     const control = event.target.closest?.('[data-action="toggle-manual"]');
-    if (!control) return;
+    if (!control || syncingManualFromBackend) return;
+    // Give the existing button's API request time to commit before syncing
+    // from the authoritative game-input controller.
+    localManualPendingUntil = Date.now() + 1500;
     // The original app click handler updates the button's .enabled class
     // synchronously; wait until it completes before reading the new state.
     setTimeout(async () => {
@@ -105,6 +110,15 @@
         const res = await fetch('/api/control-link', {cache:'no-store'});
         if (!res.ok) throw new Error('Aucune réponse du contrôleur');
         const c = await res.json();
+        // Original 2D/3D app stores `manual` internally. Trigger its own
+        // existing button (without a second API request) to keep it aligned
+        // with the ATS-side state when F8/joystick toggled while ATS focused.
+        const manualButton = document.getElementById('toggleManual');
+        if (manualButton && Date.now() >= localManualPendingUntil &&
+            manualButton.classList.contains('enabled') !== !!c.manual_armed) {
+          syncingManualFromBackend = true;
+          try { manualButton.click(); } finally { syncingManualFromBackend = false; }
+        }
         if (c.physical_control_enabled || c.dll_confirmed)
           throw new Error('État physique non autorisé pendant le premier essai');
         const name = c.profile_name || 'Aucun profil enregistré';
