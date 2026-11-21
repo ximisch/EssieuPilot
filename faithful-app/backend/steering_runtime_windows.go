@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"log"
 	"math"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -297,6 +298,10 @@ func analogFromDevices(p runtimeProfile, devices []device) float64 {
 // Uses the same mapping format as the real physical runtime: KEY:* and
 // DEVICE:*; the physical DLL never hardcodes F8/F9/F10.
 func startSteeringRuntime(s *server) func() {
+	// Only a manually launched R&D executable with this *exact* opt-in may
+	// send an experimental steering command. Never enable in release builds
+	// before ATS binary offsets and actual wheel movement are verified.
+	physicalResearchOptIn := os.Getenv("ESSIEUPILOT_UNSAFE_ATS162_TEST") == "I_ACCEPT_CRASH_RISK"
 	bridge, bridgeErr := newPhysicalSteeringBridge()
 	if bridgeErr != nil {
 		log.Printf("EssieuPilot IPC preparation unavailable: %v", bridgeErr)
@@ -459,6 +464,7 @@ func startSteeringRuntime(s *server) func() {
 				RightVirtualKey:        codeToVK(active.RightKey),
 				InputMonitoringActive:  foreground && found,
 				PhysicalControlEnabled: false,
+				PhysicalExperimentOptIn: physicalResearchOptIn,
 				PhysicalDLLLoaded: gameRunning && lastDLLProbe.Loaded,
 				PhysicalDLLSDKAccepted: gameRunning && lastDLLProbe.Recognized,
 				PhysicalDLLGameVersion: lastDLLProbe.GameVersion,
@@ -601,9 +607,54 @@ func startSteeringRuntime(s *server) func() {
 			if !lastFocusTime.IsZero() {snapshot.LastFocusTime = lastFocusTime.Format(time.RFC3339)}
 			snapshot.InputHistory = append([]string(nil), history...)
 			snapshot.LastInput, snapshot.LastEventTime = formatInputEvent(lastInput, lastEventTime)
-			// Important safety interlock: NEVER send an enabled packet to a
-			// version-unverified DLL. This first update tests mapping + IPC only.
-			if bridge != nil {
+			// R&D ONLY. All input types share the same ACTIF/INACTIF gate,
+			// plus explicit unsafe experiment consent, a 1.62 DLL SDK probe,
+			// fresh attached-trailer telemetry, and compatible axle settings.
+			// ATS offsets are still unverified; do not ship this enabled path.
+			emitted := false
+			speedAndTrailerValid := observedTelemetry.Connected && !observedTelemetry.Paused &&
+				now.Sub(lastTelemetryAt) < 750*time.Millisecond
+			oneTrailer := speedAndTrailerValid && len(observedTelemetry.Trailers) == 1
+			profileMatched := oneTrailer &&
+				(active.MatchKey == "" || strings.EqualFold(active.MatchKey, observedTelemetry.Trailers[0].ID))
+			var physicalAxle runtimeAxle
+			axlesCompatible := len(active.Trailers) == 1
+			if axlesCompatible {
+				physicalAxle, axlesCompatible = trailerCompatible(active.Trailers[0])
+			}
+			allowed := allowExperimentalPhysics(experimentalPhysicalConditions{
+				ExplicitResearchOptIn: physicalResearchOptIn,
+				InputAuthorized: steeringInstructionAllowed(manual, gameRunning, foreground, found),
+				DLLSDKProbeRecognized: lastDLLProbe.Recognized && lastDLLProbe.Loaded,
+				FreshSCSTelemetry: speedAndTrailerValid,
+				OneAttachedTrailer: oneTrailer,
+				ActiveProfileMatched: profileMatched,
+				CompatibleAxles: axlesCompatible,
+			})
+			if bridge != nil && allowed && snapshot.PlannedAngleValid {
+				if normalized, ok := normalizedPhysicalAngle(plannedAngle, physicalAxle.MaxAngle); ok {
+					if err := bridge.publish(true, 0, normalized); err == nil {
+						emitted = true
+						snapshot.PhysicalPacketSent = true
+						snapshot.PhysicalPacketNormalized = float64(normalized)
+						snapshot.PhysicalControlEnabled = true // IPC request, NOT wheel proof.
+						ack := readPhysicalAck()
+						snapshot.PhysicalCallbackAck = ack.Received && ack.TrailerIndex == 0
+						if snapshot.PhysicalCallbackAck {
+							snapshot.PhysicalCallbackAckAgeMs = ack.AgeMs
+						}
+						snapshot.PhysicalValidationStatus = "R&D : paquet IPC envoyé ; callback DLL non prouvé ; roues physiques NON VALIDÉES"
+						if snapshot.PhysicalCallbackAck {
+							snapshot.PhysicalValidationStatus = "R&D : fonction de braquage appelée dans DLL ; visuel et physique NON VALIDÉS"
+						}
+					} else {
+						snapshot.StatusMessage = "Échec d'envoi physique expérimental : " + err.Error()
+					}
+				}
+			}
+			if bridge != nil && !emitted {
+				// Cancel and restore ATS default steering on any failure,
+				// inactive input, stale telemetry, focus loss or closed game.
 				if err := bridge.publish(false, 0, 0); err != nil {
 					snapshot.IPCReady = false
 					snapshot.StatusMessage = "Canal IPC indisponible : " + err.Error()
