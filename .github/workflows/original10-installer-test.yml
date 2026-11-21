@@ -49,7 +49,7 @@ jobs:
           [IO.File]::WriteAllBytes($target,[IO.File]::ReadAllBytes($dll))
           & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $script -Action Install -AllowPhysicalTest -GamePath $game -PackageDir $package -StateDir $state -ConsentPath $consent -TestSkipGameHash
           if($LASTEXITCODE -ne 0 -or -not(Test-Path $consent)){throw 'Explicit consent not enabled'}
-          & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $script -Action Remove -GamePath $game -StateDir $state -ConsentPath $consent -TestSkipGameHash
+          & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $script -Action Remove -GamePath $game -StateDir $state -ConsentPath $consent
           if($LASTEXITCODE -ne 0 -or (Test-Path $target) -or (Test-Path $consent)){throw 'Failed to remove owned files'}
           if((Get-FileHash $other -Algorithm SHA256).Hash -ne $otherHash){throw 'Foreign plugin changed'}
           [IO.File]::WriteAllBytes($target,[Text.Encoding]::ASCII.GetBytes('UNOWNED SDK DLL'))
