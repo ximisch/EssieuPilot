@@ -39,3 +39,13 @@ Au moindre échec, le contrôleur publie un paquet IPC neutre `enabled=false` to
 Le workflow GitHub `.github/workflows/steering-reference-build.yml` sur `development/original8-physical` compile sous Windows les sources C++ issues du dépôt MIT épinglé, exécute les tests IPC, compile le backend Go et teste les protocoles de chargement/ACK ainsi que la logique de verrouillage. Aucun installateur ni DLL expérimentale ne sont publiés par ce workflow.
 
 **Important :** aucune validation physique dans ATS ne peut être déduite d'un résultat GitHub Actions vert. Tant que les hooks ATS 1.62 n'ont pas été vérifiés dans le jeu, la DLL ne doit pas être ajoutée automatiquement aux installations utilisateur.
+
+## Distribution automatique DLL + .scs (une seule mise à jour)
+
+- Le même installateur EssieuPilot est destiné aux nouveaux utilisateurs et aux mises à jour lancées depuis l'application.
+- Lorsqu'un paquet de modules a été validé et intégré à une release, l'installateur installe/met à jour ses DLL dans le dossier ATS Steam `bin\win_x64\plugins` et ses mods `.scs` dans le dossier des mods utilisateur `Documents\American Truck Simulator\mod`.
+- Le gestionnaire `Manage-ATS-Plugins-V2.ps1` installe et met à jour uniquement les fichiers de la version déclarés par manifeste et empreintes SHA-256. Les noms `.scs` sont limités à `EssieuPilot_*.scs`.
+- Les DLL inconnues, mods d'autres créateurs, et gros fichiers `.scs` du dossier jeu ne sont jamais remplacés ; ATS doit être fermé ; en cas d'échec pendant l'installation, le gestionnaire tente de restaurer les fichiers précédents.
+- La désinstallation retire uniquement les DLL/mods enregistrés comme appartenant à EssieuPilot. Certaines extensions `.scs` nécessitent une activation dans le gestionnaire de mods d'ATS.
+- Sans paquet physique validé, `EP_VALIDATED_DLL_PAYLOAD` est vide : l'installateur reste **application seule**, sans DLL ni `.scs` ajoutés au jeu.
+- Le pipeline GitHub teste ces chemins avec une installation ATS factice et des DLL/.scs factices : ce n'est pas une validation du braquage réel dans ATS 1.62.
