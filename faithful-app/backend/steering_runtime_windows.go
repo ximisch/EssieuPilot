@@ -279,7 +279,7 @@ func analogFromDevices(p runtimeProfile, devices []device) float64 {
 	return 0
 }
 
-// Stage-1 input routing: read the saved active profile every 250ms.
+// Original.7 input routing: re-read the saved active profile every 250ms.
 // Uses the same mapping format as the real physical runtime: KEY:* and
 // DEVICE:*; the physical DLL never hardcodes F8/F9/F10.
 func startSteeringRuntime(s *server) func() {
@@ -301,12 +301,16 @@ func startSteeringRuntime(s *server) func() {
 		var lastInput string
 		var lastEventTime time.Time
 		var manual, prevToggle, prevLeft, prevRight, prevAnalog bool
+		var prevApprovedDirection int
 		var profileID string
 		var profileLoaded bool
 		var lastModeRequest uint64
 		var gameRunning bool
 		var activationCount, leftCount, rightCount uint64
 		var allowedLeftCount, allowedRightCount uint64
+		var analogLeftCount, analogRightCount uint64
+		var lastApprovedCommand string
+		var lastApprovedTime time.Time
 		var lastDirection string
 		var lastDirectionTime time.Time
 		var lastFocusTime time.Time
@@ -341,6 +345,7 @@ func startSteeringRuntime(s *server) func() {
 			active, found := activeSavedProfile(profiles)
 			if !found {
 				profileID = ""
+				prevApprovedDirection = 0
 			}
 			if active.ID != profileID {
 				profileID = active.ID
@@ -355,6 +360,10 @@ func startSteeringRuntime(s *server) func() {
 				lastDirectionTime = time.Time{}
 				activationCount, leftCount, rightCount = 0, 0, 0
 				allowedLeftCount, allowedRightCount = 0, 0
+				analogLeftCount, analogRightCount = 0, 0
+				prevApprovedDirection = 0
+				lastApprovedCommand = ""
+				lastApprovedTime = time.Time{}
 				history = nil
 			}
 			manual = retainManualOnFocusChange(manual, gameRunning)
@@ -402,6 +411,7 @@ func startSteeringRuntime(s *server) func() {
 				prevLeft = false
 				prevRight = false
 				prevAnalog = false
+				prevApprovedDirection = 0
 			} else if found {
 				devices := readDevices()
 				toggle := deviceBindingDown(active.ToggleKey, devices)
@@ -421,48 +431,50 @@ func startSteeringRuntime(s *server) func() {
 				// from a disabled steering toggle.
 				if risingEdge(left, prevLeft) {
 					leftCount++
-					allowed := steeringInstructionAllowed(manual, gameRunning, foreground, found)
-					lastInput = "Gauche (" + active.LeftKey + ")"
-					if allowed {
-						allowedLeftCount++
-						lastInput += " — commande autorisée (test)"
-					} else {
-						lastInput += " — touche détectée, commande bloquée (INACTIF)"
-					}
+					lastInput = "Touche gauche détectée (" + active.LeftKey + ")"
 					lastEventTime = now
-					lastDirection = lastInput
-					lastDirectionTime = now
 					addHistory(lastInput, now)
 				}
 				if risingEdge(right, prevRight) {
 					rightCount++
-					allowed := steeringInstructionAllowed(manual, gameRunning, foreground, found)
-					lastInput = "Droite (" + active.RightKey + ")"
-					if allowed {
-						allowedRightCount++
-						lastInput += " — commande autorisée (test)"
-					} else {
-						lastInput += " — touche détectée, commande bloquée (INACTIF)"
-					}
+					lastInput = "Touche droite détectée (" + active.RightKey + ")"
 					lastEventTime = now
-					lastDirection = lastInput
-					lastDirectionTime = now
 					addHistory(lastInput, now)
 				}
 				prevLeft = left
 				prevRight = right
-				analog := math.Abs(analogFromDevices(active, devices)) >= 0.1
-				if risingEdge(analog, prevAnalog) {
-					lastInput = "Axe analogique (" + active.AnalogAxis + ")"
-					if !manual {lastInput += " — pilotage désactivé"}
+				analogValue := analogFromDevices(active, devices)
+				analogActive := math.Abs(analogValue) > 0.000001
+				if risingEdge(analogActive, prevAnalog) {
+					lastInput = "Axe analogique détecté (" + active.AnalogAxis + ")"
 					lastEventTime = now
 					addHistory(lastInput, now)
 				}
-				prevAnalog = analog
+				prevAnalog = analogActive
 				allowedNow := steeringInstructionAllowed(manual, gameRunning, foreground, found)
-				snapshot.HeldDirection = heldDirection(allowedNow, left, right)
-				snapshot.LeftPressed = snapshot.HeldDirection == "GAUCHE"
-				snapshot.RightPressed = snapshot.HeldDirection == "DROITE"
+				command := resolveInputIntent(allowedNow, left, right, analogValue)
+				nextDirection, acceptedEdge := authorizedDirectionEdge(prevApprovedDirection, command)
+				if acceptedEdge {
+					if nextDirection < 0 { allowedLeftCount++ } else { allowedRightCount++ }
+					if command.Source == "Joystick analogique" {
+						if nextDirection < 0 { analogLeftCount++ } else { analogRightCount++ }
+					}
+					lastApprovedCommand = command.Direction + " (" + command.Source + ")"
+					lastApprovedTime = now
+					lastDirection = lastApprovedCommand
+					lastDirectionTime = now
+					addHistory("Commande autorisée : "+lastApprovedCommand, now)
+				}
+				prevApprovedDirection = nextDirection
+				snapshot.HeldDirection = command.Direction
+				snapshot.RequestedSource = command.Source
+				snapshot.RequestedPercent = math.Round(command.Normalized*1000)/10
+				snapshot.AnalogDetectedPercent = math.Round(analogValue*1000)/10
+				if allowedNow && !left && !right {
+					snapshot.AnalogAuthorizedPercent = math.Round(analogValue*1000)/10
+				}
+				snapshot.LeftPressed = command.Direction == "GAUCHE"
+				snapshot.RightPressed = command.Direction == "DROITE"
 			}
 			snapshot.ManualArmed = manual
 			snapshot.SteeringInputAllowed = steeringInstructionAllowed(manual, gameRunning, foreground, found)
@@ -486,6 +498,9 @@ func startSteeringRuntime(s *server) func() {
 			snapshot.RightCount = rightCount
 			snapshot.AllowedLeftCount = allowedLeftCount
 			snapshot.AllowedRightCount = allowedRightCount
+			snapshot.AnalogLeftCount = analogLeftCount
+			snapshot.AnalogRightCount = analogRightCount
+			snapshot.LastAuthorizedCommand, snapshot.LastAuthorizedTime = formatInputEvent(lastApprovedCommand,lastApprovedTime)
 			snapshot.LastDirection = lastDirection
 			_, snapshot.LastDirectionTime = formatInputEvent(lastDirection, lastDirectionTime)
 			if !lastFocusTime.IsZero() {snapshot.LastFocusTime = lastFocusTime.Format(time.RFC3339)}
