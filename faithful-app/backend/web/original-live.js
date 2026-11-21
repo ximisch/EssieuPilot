@@ -119,8 +119,8 @@
           syncingManualFromBackend = true;
           try { manualButton.click(); } finally { syncingManualFromBackend = false; }
         }
-        if (c.physical_control_enabled || c.dll_confirmed)
-          throw new Error('État physique non autorisé pendant le premier essai');
+        if (c.dll_confirmed)
+          throw new Error('Aucun test de braquage physique n’a encore été validé dans ATS');
         const name = c.profile_name || 'Aucun profil enregistré';
         const keys = [
           'Activation : ' + (c.toggle_binding || 'Non définie'),
@@ -159,8 +159,16 @@
              (c.physical_dll_sdk_accepted ? ' · SDK ATS reconnu' : ' · VERSION NON RECONNUE')) :
             'NON CONFIRMÉ') +
           ' · ' + (c.physical_dll_probe_message || 'Aucun diagnostic disponible');
-        const physical = 'BRAQUAGE PHYSIQUE : NON VALIDÉ · ' +
-          (c.physical_validation_status || 'Aucune vérification du mouvement des essieux');
+        const experimental = 'ENVOI PHYSIQUE EXPÉRIMENTAL : ' +
+          (!c.physical_experiment_opt_in ? 'DÉSACTIVÉ par défaut' :
+           c.physical_packet_sent ?
+             ('PAQUET ENVOYÉ (' + Number(c.physical_packet_normalized || 0).toFixed(3) +
+             ') · retour de la DLL : ' + (c.physical_callback_ack ?
+               ('callback exécuté, age ' + (c.physical_callback_ack_age_ms || 0) + ' ms') :
+               'NON CONFIRMÉ')) :
+             'AUTORISATION ABSENTE : vérifier ACTIF, ATS au premier plan, télémétrie, remorque et DLL');
+        const physical = 'BRAQUAGE RÉEL : NON VALIDÉ · ' +
+          (c.physical_validation_status || 'Aucune observation physique ATS');
         const plan = c.planned_angle_valid ?
           'Angle prévu HORS JEU : ' + Number(c.planned_angle_degrees || 0).toFixed(2) +
             '° · ' + (c.planned_angle_reason || 'Non appliqué') :
@@ -186,10 +194,10 @@
           '\nDirection actuelle : ' + held +
           '\n' + analog +
           '\nDernière commande autorisée : ' + lastAccepted +
-          '\n' + plan + '\n' + speed + '\n' + dllProbe + '\n' + physical +
+          '\n' + plan + '\n' + speed + '\n' + dllProbe + '\n' + experimental + '\n' + physical +
           '\nAppuis bruts détectés (y compris INACTIF, diagnostic seul) : ' + counts +
           '\n' + last + '\nHistorique : ' + recent +
-          '\nATTENTION : mode R&D : chargement de la DLL vérifiable, mais aucune direction physique activée dans cette étape.' +
+          '\nATTENTION : mode R&D, usage expérimental non validé : un ACK indique seulement un appel DLL, jamais la preuve du mouvement des roues.' +
           (uiToggleNotice ? '\n' + uiToggleNotice : '');
         badge.textContent = !c.service_running || !c.ipc_ready || !c.profile_saved ?
           'À VÉRIFIER' : c.manual_armed ? 'ACTIVÉ · TEST' : 'INACTIF · TEST';
