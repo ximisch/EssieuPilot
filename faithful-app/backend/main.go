@@ -25,7 +25,7 @@ import (
 //go:embed web/*
 var frontend embed.FS
 
-const technicalVersion = "2.0.0-original.15"
+const technicalVersion = "2.0.0-original.16"
 
 type server struct {
 	telemetry telemetryBridge
@@ -174,8 +174,10 @@ func newServer(p profileStore) (*server, error) {
 	router.HandleFunc("GET /", s.index)
 	router.HandleFunc("GET /styles.css", s.static)
 	router.HandleFunc("GET /modern.css", s.static)
+	router.HandleFunc("GET /original16.css", s.static)
 	router.HandleFunc("GET /app.js", s.static)
 	router.HandleFunc("GET /modern.js", s.static)
+	router.HandleFunc("GET /original16-ui.js", s.static)
     router.HandleFunc("GET /original-live.js", s.static)
 	router.HandleFunc("GET /steering_logic.js", s.static)
 	router.HandleFunc("GET /logo.png", s.static)
@@ -255,7 +257,7 @@ func (s *server) index(w http.ResponseWriter, r *http.Request) {
 	// The original front end remains intact; only the existing technical version
 	// footer is replaced and a status-poll script is appended.
 	html = strings.ReplaceAll(html, "Version technique 1.6.2", "Version technique "+technicalVersion)
-	html = strings.Replace(html, "</body>", `<script src="/original-live.js" defer></script></body>`, 1)
+	html = strings.Replace(html, "</body>", `<script src="/original-live.js" defer></script><script src="/original16-ui.js" defer></script></body>`, 1)
 	buf = []byte(html)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Write(buf)
