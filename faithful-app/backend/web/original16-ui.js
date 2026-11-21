@@ -33,7 +33,7 @@
   if(originalController)inputs.appendChild(originalController);
   const home=el('div','ep16-home');
   home.innerHTML='<section class="ep16-home-hero" aria-label="Accueil EssieuPilot">'+
-   '<img class="ep16-home-hero-image" src="/hero_reference.jpg" alt="Remorque surbaissée dans un paysage nocturne">'+
+   '<img class="ep16-home-hero-image" src="/ep17_reference_hero.webp" alt="Panorama de la maquette EssieuPilot validée : remorque surbaissée et montagnes">'+
    '<div class="ep16-home-shade"></div><div class="ep16-hero-brand"><span class="ep16-hero-logo">Essieu<span>Pilot</span></span><small>PILOTAGE DES ESSIEUX · AMERICAN TRUCK SIMULATOR</small></div>'+
    '<div class="ep16-hero-statuses" role="status" aria-live="polite">'+
    '<div class="ep16-led unknown" id="ep16ATSStatus"><i></i><span><b>ATS · VÉRIFICATION</b><small>Recherche du jeu…</small></span></div>'+
@@ -59,7 +59,19 @@
   const trailerShell=el('div','ep16-trailer-shell');
   const left=el('div','ep16-trailer-left');
   const right=el('div','ep16-trailer-right');
-  if(profileSidebar){profileSidebar.classList.add('ep16-profiles-manager');left.appendChild(profileSidebar);}
+  if(profileSidebar){
+    profileSidebar.classList.add('ep16-profiles-manager');
+    const row=profileSidebar.querySelector('.side-actions');
+    if(row){
+      const del=el('button','ep17-delete-profile');
+      del.type='button';del.id='ep17DeleteProfile';
+      del.dataset.action='delete-profile';
+      del.textContent='🗑 Supprimer le profil';
+      del.title='Supprimer définitivement le profil sélectionné après confirmation';
+      row.appendChild(del);
+    }
+    left.appendChild(profileSidebar);
+  }
   const presets=el('section','ep16-panel ep16-presets');
   presets.innerHTML='<h3>＋ Modèles de remorques</h3><p>Modèles de départ à personnaliser. Le nombre réel d’essieux directeurs et l’identifiant ATS doivent être vérifiés avant tout pilotage physique.</p>'+
    '<label>Type de modèle<select id="ep16Preset">'+
@@ -222,6 +234,13 @@
       selected.value=tr.id;selected.dispatchEvent(new Event('change',{bubbles:true}));
     }
   }
+  function refreshDeleteButton(){
+    const b=q('#ep17DeleteProfile');
+    if(!b)return;
+    const count=data?.profiles?.length||0;
+    b.disabled=count<=1;
+    b.title=count<=1?'Le dernier profil ne peut pas être supprimé':'Supprimer le profil actif et ses remorques';
+  }
   // Never mutate presets or discard existing profiles just by upgrading.
   q('#ep16AddPreset').addEventListener('click',()=>{
     if(!data||!getProfile())return;
@@ -260,8 +279,8 @@
   q('#trailerSelect')?.addEventListener('change',()=>queueMicrotask(refreshTrailer));
   // Called after app.js changes profile, trailer, axle, or imports.
   const oldRenderAll=renderAll;
-  renderAll=function(){oldRenderAll();refreshTrailer();refreshDashboard();};
-  refreshTrailer();refreshDashboard();
+  renderAll=function(){oldRenderAll();refreshTrailer();refreshDashboard();refreshDeleteButton();};
+  refreshTrailer();refreshDashboard();refreshDeleteButton();
   poll();setInterval(poll,1400);
   // No physical claims from simulated per-axle animations; measured wheel angles
   // are not exposed reliably by the current experimental ATS telemetry.
