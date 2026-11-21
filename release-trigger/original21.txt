@@ -1,0 +1,1 @@
+EssieuPilot Original21 - staged Convoy readiness diagnostics. Preserve Solo steering; new read-only SDK multiplayer evidence probe, guarded local IPC, no remote trailer writes, no physical Convoy compatibility claims. Windows tests and protected native installer.
