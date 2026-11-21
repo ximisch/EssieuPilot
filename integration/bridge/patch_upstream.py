@@ -123,7 +123,9 @@ m=change(m,'    auto* init_params = static_cast< const scs_telemetry_init_params
         SCS_GET_MAJOR_VERSION(init_params->common.game_version)!=1 ||
         SCS_GET_MINOR_VERSION(init_params->common.game_version)!=62)
         return SCS_RESULT_unsupported;
-    // Refuse unconditionally any unrecognized patch revision of ATS 1.62.\n    if (!ep_ats162::exactKnownBuild()) return SCS_RESULT_unsupported;\n    HANDLE bridge=OpenFileMappingW(FILE_MAP_READ,FALSE,L"Local\\EssieuPilotSteeringV1");
+    // Refuse unconditionally any unrecognized patch revision of ATS 1.62.
+    if (!ep_ats162::exactKnownBuild()) return SCS_RESULT_unsupported;
+    HANDLE bridge=OpenFileMappingW(FILE_MAP_READ,FALSE,L"Local\\EssieuPilotSteeringV1");
     if(!bridge)return SCS_RESULT_unsupported;
     CloseHandle(bridge);
     // Read-only evidence of DLL initialization in the matching game.
