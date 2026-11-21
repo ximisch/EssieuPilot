@@ -62,11 +62,14 @@ Source: "{#AddBackslash(SourcePath)}..\integration\installer\Manage-ATS-Plugins-
 Source: "{#EP_DLL_PAYLOAD}\module-manifest.json"; DestDir: "{app}\ATS-Plugin"; Flags: ignoreversion
 Source: "{#EP_DLL_PAYLOAD}\EssieuPilotATS.dll"; DestDir: "{app}\ATS-Plugin"; Flags: ignoreversion
 Source: "{#EP_DLL_PAYLOAD}\scs_telemetry_hub.dll"; DestDir: "{app}\ATS-Plugin"; Flags: ignoreversion
+; Optional manifest-listed EssieuPilot .scs addons go to the user ATS mods folder
+; via the same transaction, NEVER to game data or core *.scs files.
+Source: "{#EP_DLL_PAYLOAD}\EssieuPilot_*.scs"; DestDir: "{app}\ATS-Plugin"; Flags: ignoreversion skipifsourcedoesntexist
 #endif
 [Tasks]
 Name: "desktopicon"; Description: "Créer un raccourci sur le Bureau"; GroupDescription: "Raccourcis facultatifs"; Flags: unchecked
 #if EP_DLL_PAYLOAD != ""
-Name: "atsplugin"; Description: "Installer / mettre à jour automatiquement les DLL validées d'ATS"; GroupDescription: "Intégration American Truck Simulator :"
+Name: "atsplugin"; Description: "Installer / mettre à jour automatiquement les DLL et mods .scs validés pour ATS"; GroupDescription: "Intégration American Truck Simulator :"
 #endif
 [Icons]
 Name: "{group}\EssieuPilot"; Filename: "{app}\EssieuPilot.exe"
@@ -80,7 +83,7 @@ Filename: "{app}\EssieuPilot.exe"; Description: "Ouvrir EssieuPilot"; Flags: now
 ; Test channel isolated from official v1.6.2 and other experiments.
 ; Profiles in AppData are never removed when upgrading/uninstalling.
 ; App-only builds never modify ATS. For validated, explicitly packaged DLLs,
-; this installer performs first-install/update/rollback automatically.
+; this installer performs first-install/update/rollback for DLL and SCS automatically.
 ; Other plugins and original UI profiles are never changed.
 #if EP_DLL_PAYLOAD != ""
 [Code]
