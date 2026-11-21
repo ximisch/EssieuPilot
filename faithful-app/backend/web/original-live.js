@@ -96,7 +96,7 @@
   if (diag) {
     const row = document.createElement('div');
     row.className = 'modern-diagnostic-row';
-    row.innerHTML = '<div><b>Touches configurables → commandes ATS (Original.7)</b>' +
+    row.innerHTML = '<div><b>Touches configurables → commandes et DLL ATS (Original.8 R&D)</b>' +
       '<p id="epInputBridgeText">Chargement du profil enregistré…</p></div>' +
       '<span id="epInputBridgeBadge" class="modern-pending-status">VÉRIFICATION</span>';
     diag.appendChild(row);
@@ -153,8 +153,14 @@
           ' % · autorisé ' + Number(c.analog_authorized_percent || 0).toFixed(1) +
           ' % · changements autorisés gauche=' + (c.analog_left_count || 0) +
           ', droite=' + (c.analog_right_count || 0);
-        const physical = 'DLL physique : ' +
-          (c.physical_validation_status || 'Non validée dans ATS');
+        const dllProbe = 'CHARGEMENT DLL ATS : ' +
+          (c.physical_dll_loaded ?
+            ('CONFIRMÉ · version signalée ' + (c.physical_dll_game_version || '?') +
+             (c.physical_dll_sdk_accepted ? ' · SDK ATS reconnu' : ' · VERSION NON RECONNUE')) :
+            'NON CONFIRMÉ') +
+          ' · ' + (c.physical_dll_probe_message || 'Aucun diagnostic disponible');
+        const physical = 'BRAQUAGE PHYSIQUE : NON VALIDÉ · ' +
+          (c.physical_validation_status || 'Aucune vérification du mouvement des essieux');
         const plan = c.planned_angle_valid ?
           'Angle prévu HORS JEU : ' + Number(c.planned_angle_degrees || 0).toFixed(2) +
             '° · ' + (c.planned_angle_reason || 'Non appliqué') :
@@ -180,10 +186,10 @@
           '\nDirection actuelle : ' + held +
           '\n' + analog +
           '\nDernière commande autorisée : ' + lastAccepted +
-          '\n' + plan + '\n' + speed + '\n' + physical +
+          '\n' + plan + '\n' + speed + '\n' + dllProbe + '\n' + physical +
           '\nAppuis bruts détectés (y compris INACTIF, diagnostic seul) : ' + counts +
           '\n' + last + '\nHistorique : ' + recent +
-          '\nATTENTION : aucun ordre de direction physique envoyé à ATS dans Original.7.' +
+          '\nATTENTION : mode R&D : chargement de la DLL vérifiable, mais aucune direction physique activée dans cette étape.' +
           (uiToggleNotice ? '\n' + uiToggleNotice : '');
         badge.textContent = !c.service_running || !c.ipc_ready || !c.profile_saved ?
           'À VÉRIFIER' : c.manual_armed ? 'ACTIVÉ · TEST' : 'INACTIF · TEST';
