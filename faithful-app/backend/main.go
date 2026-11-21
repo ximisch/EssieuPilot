@@ -25,7 +25,7 @@ import (
 //go:embed web/*
 var frontend embed.FS
 
-const technicalVersion = "2.0.0-original.7"
+const technicalVersion = "2.0.0-original.8"
 
 type server struct {
 	telemetry telemetryBridge
@@ -342,8 +342,8 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	// Stage 1: detect dynamically configured key/gamepad bindings and maintain
-	// the neutral IPC channel. No physical steering activation on ATS 1.62.
+	// Original.8: diagnostics and protected IPC remain safe by default.
+	// No unverified physical steering hook is activated by the packaged build.
 	stopControl := startSteeringRuntime(s)
 	defer stopControl()
 	listener, err := net.Listen("tcp4", "127.0.0.1:0")
