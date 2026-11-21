@@ -56,6 +56,13 @@ std::atomic<std::uint64_t> g_candidatesMatched{0};
 std::atomic<std::uint64_t> g_layoutRejected{0};
 std::atomic<std::uint64_t> g_wheelGuardRejected{0};
 std::atomic<std::uint64_t> g_applyCalls{0};
+// Debug bins record the normalized inputs that reached the game function.
+// These are NOT actual measured wheel angles and must never be labelled so.
+std::atomic<std::uint64_t> g_appliedZero{0};
+std::atomic<std::uint64_t> g_appliedLow{0};
+std::atomic<std::uint64_t> g_appliedMedium{0};
+std::atomic<std::uint64_t> g_appliedHigh{0};
+std::atomic<int> g_lastAppliedMilli{0};
 std::atomic<std::uint64_t> g_eventFrames{0};
 
 void say(const scs_log_type_t type, const char* msg)
@@ -175,6 +182,15 @@ std::uint64_t __fastcall steeringAdvance(void* self)
 
     std::memcpy(raw + layout.angleOffset, &target.angle, sizeof(target.angle));
     g_applyWheels(wheelData, target.angle);
+    // The DLL must reveal whether ATS really RECEIVED distinct magnitudes.
+    // Seeing the same wheel angle at 0.63 vs 1.0 cannot be diagnosed from
+    // IPC alone; these counters are native-call evidence only.
+    const float absolute = std::fabs(target.angle);
+    if (absolute < 0.0001f) g_appliedZero.fetch_add(1, std::memory_order_relaxed);
+    else if (absolute < 0.25f) g_appliedLow.fetch_add(1, std::memory_order_relaxed);
+    else if (absolute < 0.75f) g_appliedMedium.fetch_add(1, std::memory_order_relaxed);
+    else g_appliedHigh.fetch_add(1, std::memory_order_relaxed);
+    g_lastAppliedMilli.store(static_cast<int>(target.angle*1000.0f), std::memory_order_relaxed);
     g_applyCalls.fetch_add(1, std::memory_order_relaxed);
     epbridge::acknowledgeApplied(0); // Callback only, not wheel proof.
     return result;
@@ -206,6 +222,15 @@ void SCSAPIFUNC onFrame(const scs_event_t event, const void* const,
                 static_cast<unsigned long long>(g_wheelGuardRejected.load()),
                 static_cast<unsigned long long>(g_applyCalls.load()));
             say(SCS_LOG_TYPE_message,msg);
+            char angles[245]{};
+            std::snprintf(angles,sizeof(angles),
+                "EssieuPilot R&D input bins (NOT measured wheel degrees): zero=%llu low=%llu medium=%llu high=%llu last_milli=%d",
+                static_cast<unsigned long long>(g_appliedZero.load()),
+                static_cast<unsigned long long>(g_appliedLow.load()),
+                static_cast<unsigned long long>(g_appliedMedium.load()),
+                static_cast<unsigned long long>(g_appliedHigh.load()),
+                g_lastAppliedMilli.load());
+            say(SCS_LOG_TYPE_message,angles);
         }
         return;
     }
@@ -320,6 +345,11 @@ SCSAPI_RESULT scs_telemetry_init(const scs_u32_t version,
     g_layoutRejected.store(0);
     g_wheelGuardRejected.store(0);
     g_applyCalls.store(0);
+    g_appliedZero.store(0);
+    g_appliedLow.store(0);
+    g_appliedMedium.store(0);
+    g_appliedHigh.store(0);
+    g_lastAppliedMilli.store(0);
     g_eventFrames.store(0);
 
     if (!init->register_for_event ||
