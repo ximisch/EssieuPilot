@@ -148,7 +148,7 @@ public static class SnapshotReader
             return null;
         bool attached = TryGet(data, "trailer", out var trailer) &&
             TryGet(trailer, "connected", out var flag) && flag.ValueKind == JsonValueKind.True;
-        double? speed = TryGet(data, "speed_mps", out var sp) && sp.TryGetDouble(out var s)
+        double? speed = TryGet(data, "speed_mps", out var sp) && sp.ValueKind == JsonValueKind.Number && sp.TryGetDouble(out var s)
             && double.IsFinite(s) ? s : null;
         if (!attached) return new(false, null, null, null, speed);
 
@@ -163,7 +163,7 @@ public static class SnapshotReader
             var positions = new List<double>();
             foreach (var wheel in wheels.EnumerateArray())
             {
-                if (TryGet(wheel, "z", out var z) && z.TryGetDouble(out double position)
+                if (TryGet(wheel, "z", out var z) && z.ValueKind == JsonValueKind.Number && z.TryGetDouble(out double position)
                     && double.IsFinite(position)) positions.Add(position);
             }
             if (positions.Count > 0)
@@ -391,7 +391,8 @@ internal static class SelfTest
         const string detached = """{"game":"ats","data":{"speed_mps":0,"trailer":{"connected":false}},"trailer_spec":{"id":"stale"}}""";
         Check(SnapshotReader.Parse(detached) is { Connected: false, TrailerId: null });
         Check(SnapshotReader.Parse("""{"game":"ats","data":{"trailer":{"connected":true}}}""") is { Connected: true, TrailerId: null });
-        Console.WriteLine("Self-test : 5 assertions validées. Aucun essai physique ATS.");
+        Check(SnapshotReader.Parse("""{"game":"ats","data":{"speed_mps":"bad","trailer":{"connected":false}}}""") is { Connected: false, SpeedMps: null });
+        Console.WriteLine("Self-test : 6 assertions validées. Aucun essai physique ATS.");
     }
     private static void Check(bool result)
     {
