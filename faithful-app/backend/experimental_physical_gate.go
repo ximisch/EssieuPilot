@@ -37,9 +37,12 @@ func normalizedPhysicalAngle(angle, maxAngle, physicalFullScale float64) (float3
     ref:=physicalReferenceDegrees(physicalFullScale)
     if math.IsNaN(angle)||math.IsInf(angle,0)||
         math.IsNaN(maxAngle)||math.IsInf(maxAngle,0)||
-        maxAngle<=0||maxAngle>60||ref==0||ref<maxAngle||
+        maxAngle<0||maxAngle>60||ref==0||ref<maxAngle||
         math.Abs(angle)>maxAngle+0.0001 {
         return 0,false
     }
+    // Max 0 is an intentional straight-wheels request, not invalid
+    // calibration and never a division by zero.
+    if maxAngle==0{return 0,true}
     return float32(math.Max(-1,math.Min(1,angle/ref))),true
 }
