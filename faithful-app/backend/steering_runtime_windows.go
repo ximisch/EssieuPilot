@@ -607,6 +607,11 @@ func startSteeringRuntime(s *server) func() {
 			if !lastFocusTime.IsZero() {snapshot.LastFocusTime = lastFocusTime.Format(time.RFC3339)}
 			snapshot.InputHistory = append([]string(nil), history...)
 			snapshot.LastInput, snapshot.LastEventTime = formatInputEvent(lastInput, lastEventTime)
+			if gameRunning && observedTelemetry.Connected && observedTelemetry.WheelSteeringValid &&
+				now.Sub(lastTelemetryAt) < time.Second {
+				snapshot.ObservedWheelSteeringValid = true
+				snapshot.ObservedWheelSteeringDegrees = append([]float64(nil), observedTelemetry.WheelSteeringDegrees...)
+			}
 			// R&D ONLY. All input types share the same ACTIF/INACTIF gate,
 			// plus explicit unsafe experiment consent, a 1.62 DLL SDK probe,
 			// fresh attached-trailer telemetry, and compatible axle settings.
