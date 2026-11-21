@@ -6,6 +6,8 @@ on:
     paths:
       - '.github/workflows/steering-reference-build.yml'
       - 'integration/bridge/**'
+      - 'integration/installer/**'
+      - 'installer/EssieuPilot-Original.iss'
       - 'faithful-app/backend/physical_probe*'
       - 'faithful-app/backend/steering_runtime_windows.go'
       - 'faithful-app/backend/input_link.go'
@@ -45,6 +47,13 @@ jobs:
           } finally {Pop-Location}
           node --check faithful-app/backend/web/original-live.js
           if($LASTEXITCODE -ne 0){ throw 'Diagnostic JavaScript invalid' }
+
+      - name: Test managed ATS module first-install and updates (fake DLLs only)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          & integration/installer/Test-Manage-ATS-Plugins-V2.ps1
+          if($LASTEXITCODE -ne 0){throw 'DLL update manager tests failed'}
 
       - name: Checkout pinned MIT steering reference (NOT a production DLL)
         uses: actions/checkout@v4
