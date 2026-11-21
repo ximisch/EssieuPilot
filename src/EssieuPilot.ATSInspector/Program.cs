@@ -54,7 +54,7 @@ internal static class Program
                     SteeringPattern, 12)
             };
             var report = new InspectionReport(
-                "ATS físico — vérification préliminaire sans commande",
+                "ATS physique — vérification préliminaire sans commande",
                 "ats", version, info.Length, sha256,
                 DateTimeOffset.UtcNow, findings,
                 "NON_VALIDÉ : la signature seule ne vérifie ni le vtable[73], " +
