@@ -39,7 +39,9 @@
       try{
         const r=await fetch('/api/convoy-probe',{cache:'no-store'});
         if(!r.ok)throw Error('État multijoueur indisponible');
-        const data=await r.json();last=data;
+        const data=await r.json();
+        if(data.physical_convoy_supported!==false)throw Error('Compatibilité physique Convoi non vérifiée');
+        last=data;
         const p=data.report||{};
         $('ep21Game').textContent=data.game_running?'ATS lancé':'ATS non détecté';
         $('ep21Evidence').textContent=p.multiplayer_evidence?'Indice multijoueur observé':
