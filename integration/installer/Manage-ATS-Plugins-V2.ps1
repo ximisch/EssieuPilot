@@ -175,6 +175,25 @@ function CheckTarget([string]$plugins,$previous) {
         }
     }
 }
+function CheckModTargets([string]$modDir, $previous, $newMods) {
+    $oldMods=ReadMods $previous
+    $allNames=@{}
+    foreach($entry in $oldMods){$allNames[([string]$entry.name).ToLowerInvariant()]=[string]$entry.name}
+    foreach($entry in $newMods){$allNames[([string]$entry.name).ToLowerInvariant()]=[string]$entry.name}
+    foreach($name in $allNames.Values){
+        $to=Join-Path $modDir $name
+        if(-not(Test-Path -LiteralPath $to)){continue}
+        $file=Get-Item -LiteralPath $to -Force
+        if($file.PSIsContainer -or ($file.Attributes -band [IO.FileAttributes]::ReparsePoint)){
+            throw "Mod .scs non standard : $name"
+        }
+        $oldMatch=@($oldMods|Where-Object {$_.name -ieq $name})
+        if($oldMatch.Count -ne 1){throw "Mod .scs déjà présent et non géré par EssieuPilot : $name"}
+        if((Digest $to) -cne [string]$oldMatch[0].sha256){
+            throw "Mod .scs modifié par un tiers ; remplacement refusé : $name"
+        }
+    }
+}
 try {
     $previous=OldRecord
     if ($previous -and -not $GamePath) {$GamePath=[string]$previous.game_path}
@@ -182,6 +201,15 @@ try {
     if($previous -and [string]$previous.game_path -cne $root) {
         throw "L'installation enregistrée appartient à un autre dossier ATS."
     }
+    $oldMods=ReadMods $previous
+    if($oldMods.Count -gt 0) {
+        $oldLocation=[string]$previous.mods_path
+        if($ModPath -and ([IO.Path]::GetFullPath($ModPath) -ine [IO.Path]::GetFullPath($oldLocation))) {
+            throw "Les .scs existants ont été installés ailleurs ; mise à jour refusée pour éviter deux copies."
+        }
+        $ModPath=$oldLocation
+    }
+    $modDir=ResolveModPath $ModPath
     $plugins=Join-Path $root "bin\win_x64\plugins"
     if(Test-Path -LiteralPath $plugins) {
         $dir=Get-Item -LiteralPath $plugins -Force
@@ -193,23 +221,32 @@ try {
         Write-Host "ATS: $root"
         Write-Host "EssieuPilot managed: $($null -ne $previous)"
         foreach($name in $names){Write-Host "$name : $(Test-Path -LiteralPath (Join-Path $plugins $name))"}
+        Write-Host "Mods .scs ATS : $modDir"
+        foreach($item in $oldMods){Write-Host "$($item.name) : $(Test-Path -LiteralPath (Join-Path $modDir ([string]$item.name)))"}
         exit 0
     }
     ATSClosed
     if ($Action -eq "Remove") {
         if ($null -eq $previous) {Write-Host "Aucun module EssieuPilot enregistré.";exit 0}
         CheckTarget $plugins $previous
+        CheckModTargets $modDir $previous @()
+        foreach($item in $oldMods) {
+            $to=Join-Path $modDir ([string]$item.name)
+            if(Test-Path -LiteralPath $to){Remove-Item -LiteralPath $to -ErrorAction Stop}
+        }
         foreach($name in $names) {
             $to=Join-Path $plugins $name
             if(Test-Path -LiteralPath $to){Remove-Item -LiteralPath $to -ErrorAction Stop}
         }
         Remove-Item -LiteralPath $recordPath -ErrorAction Stop
-        Write-Host "DLL EssieuPilot retirées. Les autres plugins ATS sont conservés."
+        Write-Host "DLL et mods .scs EssieuPilot retirés. Les autres plugins et mods ATS sont conservés."
         exit 0
     }
     $package=LoadPackage
+    $newMods=ReadMods $package
     CheckTarget $plugins $previous
-    if($Action -eq "Preflight"){Write-Host "Modules validés, ATS fermé, emplacement prêt : $root";exit 0}
+    CheckModTargets $modDir $previous $newMods
+    if($Action -eq "Preflight"){Write-Host "DLL et .scs validés, ATS fermé, emplacements prêts : $root / $modDir";exit 0}
     if(-not(Test-Path -LiteralPath $plugins)){New-Item -ItemType Directory -Path $plugins -Force|Out-Null}
     New-Item -ItemType Directory -Path $StateDir -Force|Out-Null
     # Backups of only managed DLLs; never overwrite third-party files.
