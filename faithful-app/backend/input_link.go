@@ -57,6 +57,11 @@ type inputLinkSnapshot struct {
 	PhysicalDLLSDKAccepted bool   `json:"physical_dll_sdk_accepted"`
 	PhysicalDLLGameVersion string `json:"physical_dll_game_version"`
 	PhysicalDLLProbeMessage string `json:"physical_dll_probe_message"`
+	PhysicalExperimentOptIn bool `json:"physical_experiment_opt_in"`
+	PhysicalPacketSent bool `json:"physical_packet_sent"`
+	PhysicalPacketNormalized float64 `json:"physical_packet_normalized"`
+	PhysicalCallbackAck bool `json:"physical_callback_ack"`
+	PhysicalCallbackAckAgeMs uint64 `json:"physical_callback_ack_age_ms"`
 	PhysicalValidationStatus string `json:"physical_validation_status"`
 	PlannedAngleDegrees    float64 `json:"planned_angle_degrees"`
 	PlannedAngleValid      bool    `json:"planned_angle_valid"`
