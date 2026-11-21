@@ -45,7 +45,7 @@ jobs:
           $iscc = Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'
           if (-not (Test-Path $iscc)) { throw "ISCC.exe introuvable : $iscc" }
 
-      - name: Compiler et publier la cinquième version de test
+      - name: Compiler et publier la sixième version de test
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
@@ -53,7 +53,7 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $repo = '${{ github.repository }}'
           $iscc = Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'
-          foreach ($build in @(5)) {
+          foreach ($build in @(6)) {
             $tag = "v1.7.0-test.$build"
             $publishDir = Join-Path $env:GITHUB_WORKSPACE "build\test$build"
             $outputDir = Join-Path $env:GITHUB_WORKSPACE "output\test$build"
@@ -80,7 +80,7 @@ jobs:
               if ($LASTEXITCODE -ne 0) { throw "Mise à jour GitHub Release échouée" }
             }
             else {
-              gh release create "$tag" "$installer" --repo $repo --title "EssieuPilot - test de mise à jour $build" --prerelease --notes "Édition de test indépendante de la version 1.6.1. Code source public. Habillage Cargo Pulse : sept onglets, profils remorque et suppression confirmée, menu Mises à jour, diagnostics explicitement non connectés à ATS ; simulation sans commandes physiques ATS ni Convoi. Pas de signature numérique."
+              gh release create "$tag" "$installer" --repo $repo --title "EssieuPilot - test de mise à jour $build" --prerelease --notes "Édition de test indépendante de la version 1.6.1. Code source public. Habillage EssieuPilot : sept onglets, profils remorque et suppression confirmée, menu Mises à jour, diagnostics explicitement non connectés à ATS ; simulation sans commandes physiques ATS ni Convoi. Pas de signature numérique."
               if ($LASTEXITCODE -ne 0) { throw "Création GitHub Release échouée pour $tag" }
             }
           }
