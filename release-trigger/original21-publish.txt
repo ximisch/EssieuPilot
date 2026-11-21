@@ -1,1 +1,3 @@
 Publish only the already verified Original21 Windows build from GitHub Actions 44950087378. Do not rebuild physics, overwrite tags, or touch user-installed files. SHA checking via download-artifact.
+
+Retry publication using the exact successful Original20 tag-target method (current GitHub Actions SHA).
