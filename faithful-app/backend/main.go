@@ -25,7 +25,7 @@ import (
 //go:embed web/*
 var frontend embed.FS
 
-const technicalVersion = "2.0.0-original.16"
+const technicalVersion = "2.0.0-original.17"
 
 type server struct {
 	telemetry telemetryBridge
@@ -175,6 +175,7 @@ func newServer(p profileStore) (*server, error) {
 	router.HandleFunc("GET /styles.css", s.static)
 	router.HandleFunc("GET /modern.css", s.static)
 	router.HandleFunc("GET /original16.css", s.static)
+	router.HandleFunc("GET /original17.css", s.static)
 	router.HandleFunc("GET /app.js", s.static)
 	router.HandleFunc("GET /modern.js", s.static)
 	router.HandleFunc("GET /original16-ui.js", s.static)
@@ -182,6 +183,7 @@ func newServer(p profileStore) (*server, error) {
 	router.HandleFunc("GET /steering_logic.js", s.static)
 	router.HandleFunc("GET /logo.png", s.static)
 	router.HandleFunc("GET /hero_reference.jpg", s.static)
+	router.HandleFunc("GET /ep17_reference_hero.webp", s.static)
 	for i := 0; i < 5; i++ {
 		router.HandleFunc(fmt.Sprintf("GET /feature_%d.jpg", i), s.static)
 	}
@@ -282,6 +284,8 @@ func (s *server) static(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "image/png")
 	case ".jpg":
 		w.Header().Set("Content-Type", "image/jpeg")
+	case ".webp":
+		w.Header().Set("Content-Type", "image/webp")
 	}
 	w.Write(buf)
 }
