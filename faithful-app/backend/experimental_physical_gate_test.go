@@ -36,15 +36,31 @@ func TestPhysicalGateRequiresEveryCondition(t *testing.T) {
 }
 
 func TestNormalizePhysicalAngleRND(t *testing.T) {
-	got,ok:=normalizedPhysicalAngle(10.5,35)
-	if !ok||math.Abs(float64(got)-.3)>.000001{
-		t.Fatalf("30%% of 35deg should produce 0.3 normalized, got %v %v",got,ok)
+	got,ok:=normalizedPhysicalAngle(10.5,35,60)
+	if !ok||math.Abs(float64(got)-.175)>.000001{
+		t.Fatalf("10.5 nominal degrees at 60 degree calibration should produce 0.175 normalized, got %v %v",got,ok)
 	}
 	for _,v:=range []struct{angle,max float64}{
 		{math.NaN(),35},{0,math.Inf(1)},{36,35},{0,0},{0,70},{math.Inf(-1),35},
 	} {
-		if _,ok:=normalizedPhysicalAngle(v.angle,v.max);ok {
+		if _,ok:=normalizedPhysicalAngle(v.angle,v.max,60);ok {
 			t.Fatalf("accepted uncalibrated invalid physical angle %v/%v",v.angle,v.max)
 		}
 	}
+}
+
+func TestPhysicalCalibrationDecouplesPresetLimitFromATSFullLock(t *testing.T) {
+    got15,ok15:=normalizedPhysicalAngle(15,15,60)
+    got35,ok35:=normalizedPhysicalAngle(35,35,60)
+    if !ok15||!ok35||math.Abs(float64(got15)-.25)>1e-6||
+        math.Abs(float64(got35)-35.0/60)>1e-6 || got15>=got35 {
+        t.Fatalf("original13 full-lock regression: 15=%v %t, 35=%v %t",got15,ok15,got35,ok35)
+    }
+    if _,ok:=normalizedPhysicalAngle(35,35,30);ok {t.Fatal("invalid reference under 35 accepted")}
+    if _,ok:=normalizedPhysicalAngle(45,45,35);ok {t.Fatal("reference smaller than configured physical limit accepted")}
+    if x,ok:=normalizedPhysicalAngle(-35,35,120);!ok||x>=0 {t.Fatal("reverse steering not preserved")}
+    if got:=physicalReferenceDegrees(0);got!=60 {t.Fatal("legacy preset should use 60 reference")}
+    for _,v:=range []float64{-1,34,121,math.NaN(),math.Inf(1)} {
+        if physicalReferenceDegrees(v)!=0 {t.Fatalf("invalid reference %v accepted",v)}
+    }
 }
