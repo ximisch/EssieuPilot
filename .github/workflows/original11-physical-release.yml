@@ -232,7 +232,7 @@ jobs:
           $dllSha=(Get-FileHash 'release/EssieuPilotATS.dll' -Algorithm SHA256).Hash.ToLowerInvariant()
           $expected=(Get-Content 'physical-payload/module-manifest.json' -Raw|ConvertFrom-Json).files[0].sha256
           if($dllSha -cne [string]$expected){throw 'Manual and automatically bundled native DLL SHA-256 mismatch'}
-          @'
+          $manualInfo=@'
           EssieuPilot Original.11, ATS 1.62.2.2 SOLO — EXPERIMENTAL
           Installateur conseillé : Installer_EssieuPilot.exe (DLL copiée automatiquement).
           En cas d'échec, place manuellement EssieuPilotATS.dll dans :
@@ -244,7 +244,8 @@ jobs:
           message « EssieuPilot: experimental 1.62.2.2 DLL loaded ».
           Le braquage PHYSIQUE n'est PAS validé et peut causer un crash.
           Activer explicitement l'essai seulement en SOLO, JAMAIS EN CONVOI.
-          '@ | Set-Content -LiteralPath 'release/LISEZ_MOI_DLL_ORIGINAL11.txt' -Encoding UTF8
+          '@
+          Set-Content -LiteralPath 'release/LISEZ_MOI_DLL_ORIGINAL11.txt' -Value $manualInfo -Encoding UTF8
           Get-FileHash 'release/EssieuPilotATS.dll' -Algorithm SHA256
 
       - name: Upload experimental Windows updater with native DLL bundled
