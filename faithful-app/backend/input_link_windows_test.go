@@ -131,14 +131,14 @@ func TestHeldDirectionKeepsOneContinuousHoldWithoutRepeatedPresses(t *testing.T)
 
 func TestJoystickButtonsIndependentlyAssigned(t *testing.T) {
     buttons:=[]bool{true, false, true, false, false, true}
-    dev:=[]device{{ID:"JOY0",Buttons:buttons,Axes:[]float64{0.3,-0.4},POV:-1}}
+    dev:=[]device{{ID:"JOY0",Buttons:buttons,Axes:[]float64{0.75,-0.8},POV:-1}}
     if !deviceBindingDown("DEVICE:JOY0:BUTTON:0",dev) ||
        deviceBindingDown("DEVICE:JOY0:BUTTON:1",dev) ||
        !deviceBindingDown("DEVICE:JOY0:BUTTON:2",dev) ||
        !deviceBindingDown("DEVICE:JOY0:BUTTON:5",dev) {
         t.Fatal("joystick button indices 0,1,2,5 were not handled independently")
     }
-    if !deviceBindingDown("DEVICE:JOY0:AXIS:0:+",dev) && deviceBindingDown("DEVICE:JOY0:AXIS:0:-",dev){
+    if !deviceBindingDown("DEVICE:JOY0:AXIS:0:+",dev) || deviceBindingDown("DEVICE:JOY0:AXIS:0:-",dev){
         t.Fatal("joystick axis sign inverted")
     }
 }
