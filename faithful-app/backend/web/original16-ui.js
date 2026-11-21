@@ -100,7 +100,7 @@
   // uses app.js; the existing 3D canvas uses modern.js. Both stay functional.
   const switcher=el('div','ep16-view-switch');
   switcher.innerHTML='<button type="button" data-ep16-view="2d">▱ Vue 2D</button><button type="button" data-ep16-view="3d" class="active">⬡ Vue 3D</button>';
-  viewer.insertBefore(switcher,viewer.firstChild);
+  viewer.insertBefore(switcher,viewer.querySelector('.modern-section-intro')?.nextSibling||viewer.firstChild);
   const viewer3d=q('.modern-viewer-layout');
   const setViewer=mode=>{
     for(const b of switcher.querySelectorAll('button'))b.classList.toggle('active',b.dataset.ep16View===mode);
@@ -130,10 +130,22 @@
       '<h3>Rapports et contrôles</h3>';
     diagnostics.insertBefore(diagHeader,diagCore);
     diagCore.classList.add('ep16-diagnostic-logs');
+    const rest=[...diagCore.children].filter(x=>x.classList.contains('modern-diagnostic-row') &&
+      !x.querySelector('a[href="/api/physical-diagnostic"]'));
+    if(rest.length){
+      const extra=el('details','ep16-diag-extra');
+      extra.innerHTML='<summary>Détails techniques : touches, historiques, compteurs et limites</summary>';
+      rest.forEach(x=>extra.appendChild(x));
+      diagCore.appendChild(extra);
+    }
   }
   // Installation instructions and historical context belong to À propos.
   const atsHelp=q('.modern-page[data-page="diagnostics"] .essieupilot-utility-panel');
-  if(atsHelp){atsHelp.classList.add('ep16-ats-help');about.appendChild(atsHelp);}
+  if(atsHelp){
+    atsHelp.classList.add('ep16-ats-help');about.appendChild(atsHelp);
+    const description=atsHelp.querySelector('.essieupilot-panel-title p');
+    if(description)description.textContent='EssieuPilot récupère la télémétrie ATS et utilise une DLL expérimentale pour certaines commandes physiques en SOLO. Les interventions sur la physique ne sont pas fournies par le SDK officiel et restent limitées à une version exacte du jeu.';
+  }
   const aboutExtra=q('.modern-page[data-page="about"] .essieupilot-utility-panel:not(.ep16-ats-help)');
   if(aboutExtra){
     const old=aboutExtra.querySelector('.essieupilot-list');
