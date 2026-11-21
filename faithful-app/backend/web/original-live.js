@@ -94,6 +94,24 @@
   // Stage 1 is displayed in the existing Diagnostic tab, not a new Pilotage tab.
   const diag = document.querySelector('.modern-diagnostic');
   if (diag) {
+    // Original.12: download the DURABLE last-in-game report. It survives
+    // Alt+Tab and stopping ATS and cannot enable any physical steering.
+    const physicalReportRow = document.createElement('div');
+    physicalReportRow.className = 'modern-diagnostic-row';
+    const reportText = document.createElement('div');
+    const reportHeading = document.createElement('b');
+    reportHeading.textContent = 'Original.12 · Diagnostic automatique du braquage physique';
+    const reportHelp = document.createElement('p');
+    reportHelp.textContent = 'Effectue tes essais avec ATS au premier plan, puis télécharge ici le dernier rapport. Il reste disponible après avoir quitté le jeu. Chemin local : %LOCALAPPDATA%\\EssieuPilot\\ATS-Physical-Test\\diagnostic-original12.json. Aucun braquage réel n’est encore validé.';
+    const reportLink = document.createElement('a');
+    reportLink.href = '/api/physical-diagnostic';
+    reportLink.download = 'EssieuPilot_Diagnostic_Physique_Original12.json';
+    reportLink.textContent = 'Télécharger le diagnostic physique (JSON)';
+    reportLink.style.textDecoration = 'underline';
+    reportLink.style.fontWeight = 'bold';
+    reportText.append(reportHeading, reportHelp, reportLink);
+    physicalReportRow.appendChild(reportText);
+    diag.appendChild(physicalReportRow);
     // Original.9 : identifie la remorque depuis la télémétrie SCS,
     // puis retrouve le profil associé sans piloter ni modifier le jeu.
     const autoRow = document.createElement('div');
@@ -155,7 +173,7 @@
 
     const row = document.createElement('div');
     row.className = 'modern-diagnostic-row';
-    row.innerHTML = '<div><b>Touches configurables → commandes et DLL ATS (Original.9 (diagnostic))</b>' +
+    row.innerHTML = '<div><b>Touches configurables → commandes et DLL ATS (Original.12 - diagnostic)</b>' +
       '<p id="epInputBridgeText">Chargement du profil enregistré…</p></div>' +
       '<span id="epInputBridgeBadge" class="modern-pending-status">VÉRIFICATION</span>';
     diag.appendChild(row);
