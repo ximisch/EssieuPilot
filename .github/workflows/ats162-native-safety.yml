@@ -38,6 +38,10 @@ jobs:
               -not $native.Contains('SCS_GET_MINOR_VERSION')) {
             throw 'Native version fingerprint safety gate absent'
           }
+          $patchedSteering=Get-Content -Raw upstream-ts-extra/src/windows/trailer_manipulation.cpp
+          if(-not $patchedSteering.Contains('if (!ep_ats162::ABI_VALIDATED_FOR_WRITES) return;')) {
+            throw 'Unsafe steering hook not blocked until real game structural validation'
+          }
           $header=Get-Content -Raw upstream-ts-extra/src/ATS162ExactBuildGate.hpp
           foreach($needle in @('EXPECTED_SHA256','EXPECTED_SIZE','STEERING_SIGNATURE_FILE_OFFSET','BCryptHashData')) {
             if(-not $header.Contains($needle)){throw "Missing fingerprint criterion: $needle"}
