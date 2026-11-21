@@ -30,6 +30,12 @@ type physicalDiagnosticFrame struct {
  AxlesCompatible bool `json:"axles_compatible"`
  RequestedDirection string `json:"requested_direction,omitempty"`
  AngleTargetDegrees float64 `json:"target_angle_degrees"`
+ ATSDetectedTrailerID string `json:"ats_detected_trailer_id,omitempty"`
+ SelectedPresetID string `json:"selected_preset_id,omitempty"`
+ SelectionReason string `json:"selection_reason,omitempty"`
+ NormalizedIPCAngle float64 `json:"normalized_ipc_angle"`
+ PhysicalFullScaleDegrees float64 `json:"calibration_degrees_at_full_lock,omitempty"`
+ IndependentAxlePhysics bool `json:"independent_axle_physics_supported"`
  IPCSent bool `json:"ipc_packet_sent"`
  CallbackACK bool `json:"dll_callback_ack"`
  ObservedWheelSteeringDegrees []float64 `json:"ats_sdk_measured_wheel_angles_degrees,omitempty"`
@@ -72,7 +78,7 @@ func newPhysicalDiagnosticRecorderAt(path string) *physicalDiagnosticRecorder {
  return &physicalDiagnosticRecorder{
   path:path,
   report:physicalDiagnosticReport{Schema:1,Build:"Original.14",
-   Warning:"Rapport de diagnostic IPC/SDK seulement. Une DLL chargee, un hook arme et un ACK ne prouvent jamais le mouvement des roues. SOLO uniquement.",
+   Warning:"Rapport IPC/SDK de recherche. Reference de calibrage non mesuree, valeur ATS normalisee non equivalente aux degres reels. Un ACK ne prouve pas le mouvement des roues. Pilotage independant des essieux NON disponible. SOLO uniquement.",
    Events:make([]physicalDiagnosticFrame,0)},
  }
 }
@@ -141,6 +147,12 @@ func (d *physicalDiagnosticRecorder) observe(now time.Time, snapshot inputLinkSn
   AxlesCompatible:c.CompatibleAxles,
   RequestedDirection:requested,
   AngleTargetDegrees:snapshot.PlannedAngleDegrees,
+  ATSDetectedTrailerID:snapshot.PhysicalDetectedTrailerID,
+  SelectedPresetID:snapshot.PhysicalSelectedTrailerID,
+  SelectionReason:snapshot.PhysicalSelectionReason,
+  NormalizedIPCAngle:snapshot.PhysicalPacketNormalized,
+  PhysicalFullScaleDegrees:snapshot.PhysicalCalibrationReferenceDegrees,
+  IndependentAxlePhysics:false,
   IPCSent:snapshot.PhysicalPacketSent,
   CallbackACK:snapshot.PhysicalCallbackAck,
  }
