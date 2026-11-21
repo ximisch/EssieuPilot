@@ -2,6 +2,9 @@
 #include <iostream>
 #include <vector>
 
+static_assert(!ep_ats162::ABI_VALIDATED_FOR_WRITES,
+              "Physical hooks must remain disabled until ABI + in-game motion validation");
+
 int main()
 {
   // A CI worker is NOT the exact user's ATS build: the gate must refuse.
