@@ -100,7 +100,7 @@
     selectionRow.className='modern-diagnostic-row';
     const selectionDetails=document.createElement('div');
     const selectionHeading=document.createElement('b');
-    selectionHeading.textContent='Original.14 · Association automatique des remorques et calibrage (SOLO)';
+    selectionHeading.textContent='Original.15 · Limite physique de 0 à 60° et association automatique (SOLO)';
     const selectionHelp=document.createElement('p');
     selectionHelp.textContent='Attelle une remorque dans ATS puis associe-la une seule fois à sa configuration. À chaque changement de remorque, EssieuPilot recherche son identifiant ATS exact et recharge automatiquement le réglage associé. En cas d’identifiant inconnu ou partagé par plusieurs configurations, aucune sélection automatique risquée. Les essieux indépendants restent sauvegardés, mais la DLL ne reçoit actuellement qu’un angle global par remorque.';
     const selectionChoice=document.createElement('select');
@@ -111,8 +111,20 @@
     selectionButton.type='button';
     selectionButton.className='btn btn-primary';
     selectionButton.textContent='Associer la remorque ATS à cette configuration';
+    const physicalLimitLabel=document.createElement('label');
+    physicalLimitLabel.textContent='Limite de braquage physique (0 à 60°) : ';
+    physicalLimitLabel.style.marginLeft='8px';
+    const physicalLimitInput=document.createElement('input');
+    physicalLimitInput.type='number';
+    physicalLimitInput.min='0';physicalLimitInput.max='60';physicalLimitInput.step='0.5';
+    physicalLimitInput.id='epPhysicalSteeringLimitDegrees';
+    physicalLimitInput.value='35';
+    physicalLimitInput.style.width='72px';
+    physicalLimitLabel.appendChild(physicalLimitInput);
+    const physicalLimitHelp=document.createElement('p');
+    physicalLimitHelp.textContent='0° demande une direction nulle (roues droites), sans division par zéro. La limite ne peut pas dépasser le maximum configuré dans les essieux. C’est une consigne nominale : son amplitude réelle dans ATS reste à vérifier.';
     const calibrationLabel=document.createElement('label');
-    calibrationLabel.textContent='Référence physique (° pour 100 % ATS, non mesurée) : ';
+    calibrationLabel.textContent='Étalonnage avancé (référence pour 100 % ATS, 35 à 120°, non mesurée) : ';
     calibrationLabel.style.marginLeft='8px';
     const calibrationInput=document.createElement('input');
     calibrationInput.type='number';
@@ -125,7 +137,7 @@
     calibrationHelp.textContent='Par défaut 60° = 100 % ATS. Exemple : limite 15° → 25 % ATS ; limite 35° → 58,3 %. Ces pourcentages sont une approximation, pas une mesure des angles des roues. Pour calibrer plus précisément, ajuste la référence après des essais visuels.';
     const selectionNotice=document.createElement('p');
     selectionNotice.id='epPhysicalTrailerChoiceStatus';
-    selectionDetails.append(selectionHeading,selectionHelp,selectionChoice,calibrationLabel,calibrationHelp,selectionButton,selectionNotice);
+    selectionDetails.append(selectionHeading,selectionHelp,selectionChoice,physicalLimitLabel,physicalLimitHelp,calibrationLabel,calibrationHelp,selectionButton,selectionNotice);
     selectionRow.appendChild(selectionDetails);
     diag.appendChild(selectionRow);
     async function refreshSelection(){
@@ -160,6 +172,10 @@
           const selected=options.find(t=>t.id===selectionChoice.value)||options[0];
           if(document.activeElement!==calibrationInput) {
             calibrationInput.value=String(selected?.physical_full_scale_degrees||60);
+          }
+          if(document.activeElement!==physicalLimitInput) {
+            const activeMax=Math.max(0,...(selected?.axles||[]).filter(a=>a.enabled).map(a=>Number(a.max_angle)||0));
+            physicalLimitInput.value=String(selected?.physical_angle_limit_degrees??activeMax);
           }
           const telemetryResponse=await fetch('/api/telemetry',{cache:'no-store'});
           let observed=null;
@@ -202,7 +218,11 @@
         const config=await response.json();
         const p=config.profiles?.find(x=>x.id===config.active_id);
         const selected=p?.trailers?.find(t=>t.id===selectionChoice.value);
-        if(selected)calibrationInput.value=String(selected.physical_full_scale_degrees||60);
+        if(selected){
+          calibrationInput.value=String(selected.physical_full_scale_degrees||60);
+          const activeMax=Math.max(0,...selected.axles.filter(a=>a.enabled).map(a=>Number(a.max_angle)||0));
+          physicalLimitInput.value=String(selected.physical_angle_limit_degrees??activeMax);
+        }
       }catch(_){}
     });
     selectionButton.addEventListener('click',async()=>{
@@ -218,6 +238,11 @@
         const chosen=p.trailers.find(t=>t.id===selectionChoice.value);
         const calibration=Number(calibrationInput.value);
         const configuredMax=Math.max(0,...chosen.axles.filter(x=>x.enabled).map(x=>Number(x.max_angle)||0));
+        const physicalLimit=Number(physicalLimitInput.value);
+        if(!Number.isFinite(physicalLimit)||physicalLimit<0||physicalLimit>60||
+           physicalLimit>configuredMax){
+          throw new Error('Limite physique invalide : entre 0° et 60°, et pas supérieure à la limite des essieux.');
+        }
         if(!Number.isFinite(calibration)||calibration<35||calibration>120||calibration<configuredMax){
           throw new Error('Référence de calibrage invalide (35° à 120°, et au moins autant que l’angle maximal configuré).');
         }
@@ -234,6 +259,7 @@
         if(collision)throw new Error('Identifiant ATS déjà associé à « '+collision.name+' ». Il faut d’abord corriger cette association pour éviter un conflit.');
         chosen.ats_match_key=observedID;
         chosen.physical_full_scale_degrees=calibration;
+        chosen.physical_angle_limit_degrees=physicalLimit;
         p.physical_selected_trailer_id=chosen.id;
         const result=await fetch('/api/config',{
           method:'POST',
@@ -250,11 +276,12 @@
             if(appTrailer){
               appTrailer.ats_match_key=chosen.ats_match_key;
               appTrailer.physical_full_scale_degrees=chosen.physical_full_scale_degrees;
+              appTrailer.physical_angle_limit_degrees=chosen.physical_angle_limit_degrees;
             }
           }
         }
         selectionChoice.dataset.chosen='';
-        selectionNotice.textContent='Association automatique enregistrée : '+observedID+' → '+chosen.name+'. Calibrage : '+calibration+'°. Essaie maintenant en SOLO.';
+        selectionNotice.textContent='Association sauvegardée : '+observedID+' → '+chosen.name+'. Limite physique : '+physicalLimit+'° ; étalonnage : '+calibration+'°. À tester en SOLO.';
       }catch(e){selectionNotice.textContent='Erreur : '+e.message}
       finally {selectionChoice.dataset.busy='';selectionButton.disabled=false;}
     });
@@ -265,12 +292,12 @@
     physicalReportRow.className = 'modern-diagnostic-row';
     const reportText = document.createElement('div');
     const reportHeading = document.createElement('b');
-    reportHeading.textContent = 'Original.14 · Diagnostic automatique du braquage physique';
+    reportHeading.textContent = 'Original.15 · Diagnostic automatique du braquage physique';
     const reportHelp = document.createElement('p');
-    reportHelp.textContent = 'Effectue tes essais avec ATS au premier plan, puis télécharge ici le dernier rapport. Il reste disponible après avoir quitté le jeu. Chemin local : %LOCALAPPDATA%\\EssieuPilot\\ATS-Physical-Test\\diagnostic-original14.json. Aucun braquage réel n’est encore validé.';
+    reportHelp.textContent = 'Effectue tes essais avec ATS au premier plan, puis télécharge ici le dernier rapport. Il reste disponible après avoir quitté le jeu. Chemin local : %LOCALAPPDATA%\\EssieuPilot\\ATS-Physical-Test\\diagnostic-original15.json. Aucun braquage réel n’est encore validé.';
     const reportLink = document.createElement('a');
     reportLink.href = '/api/physical-diagnostic';
-    reportLink.download = 'EssieuPilot_Diagnostic_Physique_Original14.json';
+    reportLink.download = 'EssieuPilot_Diagnostic_Physique_Original15.json';
     reportLink.textContent = 'Télécharger le diagnostic physique (JSON)';
     reportLink.style.textDecoration = 'underline';
     reportLink.style.fontWeight = 'bold';
