@@ -274,7 +274,7 @@ jobs:
             release/Installer_EssieuPilot.exe
             release/EssieuPilot_Interface_Originale_ZIP.zip
             release/EssieuPilotATS.dll
-            release/LISEZ_MOI_DLL_ORIGINAL15.txt
+            release/LISEZ_MOI_DLL_ORIGINAL20.txt
           retention-days: 21
 
       - name: Publish separate test version with original UI (NOT stable)
@@ -305,6 +305,6 @@ jobs:
 
           **Après installation** : ATS fermé pendant l'installation, sauvegarde des profils, test à l'arrêt en SOLO sur la même remorque. Active avec la touche configurée, maintiens 2-3 s la gauche puis la droite, ouvre Diagnostique → télécharge « Diagnostic gauche / droite » et vérifie game.log.txt (signed callbacks negative et positive). En cas de problème, retourne à Original 19.
           '@
-          gh release create $tag release/Installer_EssieuPilot.exe release/EssieuPilot_Interface_Originale_ZIP.zip release/EssieuPilotATS.dll release/LISEZ_MOI_DLL_ORIGINAL15.txt --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title 'EssieuPilot — Original 20 · diagnostic bidirectionnel Steel Vector' --prerelease --notes $notes
+          gh release create $tag release/Installer_EssieuPilot.exe release/EssieuPilot_Interface_Originale_ZIP.zip release/EssieuPilotATS.dll release/LISEZ_MOI_DLL_ORIGINAL20.txt --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title 'EssieuPilot — Original 20 · diagnostic bidirectionnel Steel Vector' --prerelease --notes $notes
           if($LASTEXITCODE -ne 0){throw 'Publication failed'}
           gh release view $tag --repo $env:GITHUB_REPOSITORY
