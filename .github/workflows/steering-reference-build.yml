@@ -55,6 +55,47 @@ jobs:
           & integration/installer/Test-Manage-ATS-Plugins-V2.ps1
           if($LASTEXITCODE -ne 0){throw 'DLL update manager tests failed'}
 
+      - name: Compile original UI installer in app-only and DLL-bundled modes (MOCK FILES, no release)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $root=Join-Path $env:RUNNER_TEMP 'EP-Installer-Integration-Test'
+          $app=Join-Path $root 'app'
+          $fake=Join-Path $root 'fake-validated-dlls'
+          $out=Join-Path $root 'output'
+          New-Item -ItemType Directory -Force $app,$fake,$out|Out-Null
+          [IO.File]::WriteAllBytes((Join-Path $app 'EssieuPilot.exe'),[Text.Encoding]::UTF8.GetBytes('MOCK WINDOWS APPLICATION'))
+          [IO.File]::WriteAllBytes((Join-Path $app 'EssieuPilotBackend.exe'),[Text.Encoding]::UTF8.GetBytes('MOCK BACKEND'))
+          $names=@('EssieuPilotATS.dll','scs_telemetry_hub.dll')
+          $records=@()
+          foreach($name in $names) {
+            $path=Join-Path $fake $name
+            [IO.File]::WriteAllBytes($path,[Text.Encoding]::UTF8.GetBytes('MOCK CI DLL - NOT FOR DISTRIBUTION'))
+            $records+=@{name=$name;sha256=(Get-FileHash $path -Algorithm SHA256).Hash.ToLowerInvariant()}
+          }
+          @{schema=1;game='ats';game_series='1.62';module_version='CI-MOCK';files=$records}|ConvertTo-Json -Depth 4|
+            Set-Content -LiteralPath (Join-Path $fake 'module-manifest.json') -Encoding UTF8
+          $iscc=Join-Path ([Environment]::GetFolderPath('ProgramFilesX86')) 'Inno Setup 6\ISCC.exe'
+          if(-not (Test-Path $iscc)) {
+            choco install innosetup -y --no-progress
+            if($LASTEXITCODE -ne 0){throw 'Inno Setup install failed'}
+          }
+          if(-not (Test-Path $iscc)){throw 'Inno Setup compiler unavailable'}
+          $env:EP_PUBLISH_DIR=$app
+          $env:EP_OUT_DIR=$out
+          $env:EP_APP_VERSION='2.0.0'
+          $env:EP_VALIDATED_DLL_PAYLOAD=''
+          & $iscc 'installer/EssieuPilot-Original.iss'
+          if($LASTEXITCODE -ne 0){throw 'App-only Inno installer regressed'}
+          if(-not (Test-Path (Join-Path $out 'Installer_EssieuPilot.exe'))){throw 'No app-only installer'}
+          Remove-Item -LiteralPath (Join-Path $out 'Installer_EssieuPilot.exe')
+          $env:EP_VALIDATED_DLL_PAYLOAD=$fake
+          & $iscc 'installer/EssieuPilot-Original.iss'
+          if($LASTEXITCODE -ne 0){throw 'Bundled DLL Inno installer invalid'}
+          if(-not (Test-Path (Join-Path $out 'Installer_EssieuPilot.exe'))){throw 'No DLL-bundled installer'}
+          Write-Host 'PASS: app-only and validated-DLL-enabled single installers compile. ALL payloads are FAKE and NEVER published.'
+          Remove-Item -LiteralPath $root -Recurse -Force
+
       - name: Checkout pinned MIT steering reference (NOT a production DLL)
         uses: actions/checkout@v4
         with:
