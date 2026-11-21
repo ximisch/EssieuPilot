@@ -1,0 +1,41 @@
+name: Original.9 - inventorier les fichiers originaux (sans installation)
+
+on:
+  push:
+    branches: [feature/original9-telemetry-installer]
+    paths:
+      - '.github/workflows/original9-inventory.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Télécharger l'archive publiée Original.8
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p original8
+          gh release download v2.0.0-original.8 --repo "$GITHUB_REPOSITORY" --pattern 'EssieuPilot_Interface_Originale_ZIP.zip' --dir original8
+      - name: Inventorier sans exécuter de binaires
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile
+          p = Path('original8/EssieuPilot_Interface_Originale_ZIP.zip')
+          with ZipFile(p) as z:
+              entries = sorted(z.infolist(), key=lambda e:e.filename)
+              print(f"ORIGINAL8_COUNT {len(entries)}")
+              for item in entries[:350]:
+                  print("FILE", item.filename, "SIZE", item.file_size)
+              print("SOURCE_CANDIDATES")
+              for item in entries:
+                  if item.filename.lower().endswith(('.py','.cs','.cpp','.c','.sln','.csproj','.iss','.ps1','.json','.toml','.ini')):
+                      print("CANDIDATE", item.filename, "SIZE", item.file_size)
+          PY
