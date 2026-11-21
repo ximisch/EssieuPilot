@@ -180,7 +180,7 @@
       finally {selectionChoice.dataset.busy='';selectionButton.disabled=false;}
     });
     refreshSelection();setInterval(refreshSelection,4000);
-    // Original.12: download the DURABLE last-in-game report. It survives
+    // Original.13: download the DURABLE last-in-game report. It survives
     // Alt+Tab and stopping ATS and cannot enable any physical steering.
     const physicalReportRow = document.createElement('div');
     physicalReportRow.className = 'modern-diagnostic-row';
@@ -188,7 +188,7 @@
     const reportHeading = document.createElement('b');
     reportHeading.textContent = 'Original.13 · Diagnostic automatique du braquage physique';
     const reportHelp = document.createElement('p');
-    reportHelp.textContent = 'Effectue tes essais avec ATS au premier plan, puis télécharge ici le dernier rapport. Il reste disponible après avoir quitté le jeu. Chemin local : %LOCALAPPDATA%\\EssieuPilot\\ATS-Physical-Test\\diagnostic-original12.json. Aucun braquage réel n’est encore validé.';
+    reportHelp.textContent = 'Effectue tes essais avec ATS au premier plan, puis télécharge ici le dernier rapport. Il reste disponible après avoir quitté le jeu. Chemin local : %LOCALAPPDATA%\\EssieuPilot\\ATS-Physical-Test\\diagnostic-original13.json. Aucun braquage réel n’est encore validé.';
     const reportLink = document.createElement('a');
     reportLink.href = '/api/physical-diagnostic';
     reportLink.download = 'EssieuPilot_Diagnostic_Physique_Original12.json';
@@ -259,7 +259,7 @@
 
     const row = document.createElement('div');
     row.className = 'modern-diagnostic-row';
-    row.innerHTML = '<div><b>Touches configurables → commandes et DLL ATS (Original.12 - diagnostic)</b>' +
+    row.innerHTML = '<div><b>Touches configurables → commandes et DLL ATS (Original.13 - diagnostic)</b>' +
       '<p id="epInputBridgeText">Chargement du profil enregistré…</p></div>' +
       '<span id="epInputBridgeBadge" class="modern-pending-status">VÉRIFICATION</span>';
     diag.appendChild(row);
