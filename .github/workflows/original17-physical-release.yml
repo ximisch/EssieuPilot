@@ -91,7 +91,7 @@ jobs:
           }
           $app=[IO.File]::ReadAllText('faithful-app/backend/web/app.js')
           foreach($needle in @("action==='delete-profile'","data.profiles.length<=1","window.confirm(",
-             'data.profiles=data.profiles.filter','Profil restauré','markDirty();renderAll();')){
+             'data.profiles=data.profiles.filter','profil restauré','markDirty();renderAll();')){
             if(-not $app.Contains($needle)){throw "Safe profile deletion missing: $needle"}
           }
           $skin=[IO.File]::ReadAllText('faithful-app/backend/web/original17.css')
