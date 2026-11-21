@@ -60,12 +60,12 @@ jobs:
             if(-not $diagServer.Contains($needle)){throw "Missing durable in-game diagnostic: $needle"}
           }
           $ui=[IO.File]::ReadAllText('faithful-app/backend/web/original-live.js')
-          foreach($token in @('epPhysicalTrailerChoice','physical_selected_trailer_id','Utiliser cette configuration pour ATS')){
+          foreach($token in @('epPhysicalTrailerChoice','physical_selected_trailer_id','Associer la remorque ATS à cette configuration')){
             if(-not $ui.Contains($token)){throw "Generic physical trailer selection missing: $token"}
           }
           $runtime=[IO.File]::ReadAllText('faithful-app/backend/steering_runtime_windows.go')
           if($runtime.Contains('axlesCompatible := len(active.Trailers) == 1')){throw 'Original.12 single-preset restriction still present'}
-          if(-not $runtime.Contains('selectedPhysicalTrailer(active)')){throw 'Universal saved trailer selection not wired'}
+          if(-not $runtime.Contains('selectedPhysicalTrailerForATS(active,detectedID)')){throw 'Universal saved trailer selection not wired'}
           $cpp=[IO.File]::ReadAllText('integration/physical/EssieuPilotATS.cpp')
           foreach($token in @('kSourceSlot = 73','kSourceAngleOffset = 0x4E8',
             'kSourceWheelPtrOffset = 0x4F0','g_applyCalls','g_wheelGuardRejected',
