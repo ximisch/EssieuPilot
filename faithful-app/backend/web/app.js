@@ -419,7 +419,7 @@ const cv=$('scene');
 const ctx=cv.getContext('2d');
 function drawScene(){
   if(!data)return;
-  const w=cv.clientWidth,h=cv.clientHeight,dpr=Math.min(devicePixelRatio||1,2);
+  const w=cv.clientWidth,h=cv.clientHeight,dpr=Math.min(devicePixelRatio||1,3);
   if(cv.width!==Math.round(w*dpr)||cv.height!==Math.round(h*dpr)){cv.width=Math.round(w*dpr);cv.height=Math.round(h*dpr);}
   ctx.setTransform(dpr,0,0,dpr,0,0);
   ctx.clearRect(0,0,w,h);
