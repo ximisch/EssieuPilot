@@ -208,6 +208,9 @@ type runtimeProfile struct {
 	AnalogOutputPct  float64          `json:"analog_output_pct"`
 	AutoCenter       bool             `json:"auto_center_moving"`
 	Trailers         []runtimeTrailer `json:"trailers"`
+	// Optional explicit binding of ONE actual ATS trailer to a saved
+	// configuration. Supports any count of presets, never assumes index 0.
+	PhysicalSelectedTrailerID string `json:"physical_selected_trailer_id"`
 }
 type runtimeProfiles struct {
 	ActiveID string           `json:"active_id"`
@@ -226,6 +229,24 @@ func findProfile(p runtimeProfiles, trailerID string) (runtimeProfile, bool) {
 		}
 	}
 	return runtimeProfile{}, false
+}
+
+// Explicitly resolve ONE selected configuration for the single attached
+// trailer supported by the current experimental DLL. Other configurations
+// remain stored and untouched. For multiple presets, never silently send a
+// potentially wrong trailer's steering data to the game.
+func selectedPhysicalTrailer(p runtimeProfile) (runtimeTrailer, bool) {
+    if len(p.Trailers)==1 {
+        if p.PhysicalSelectedTrailerID!="" && p.PhysicalSelectedTrailerID!=p.Trailers[0].ID {
+            return runtimeTrailer{},false
+        }
+        return p.Trailers[0],true
+    }
+    if p.PhysicalSelectedTrailerID=="" {return runtimeTrailer{},false}
+    for _,t:=range p.Trailers {
+        if t.ID==p.PhysicalSelectedTrailerID {return t,true}
+    }
+    return runtimeTrailer{},false
 }
 
 // The game bridge is per trailer; reject conflicting per-axle directions,
@@ -568,9 +589,10 @@ func startSteeringRuntime(s *server) func() {
 				}
 				snapshot.LeftPressed = command.Direction == "GAUCHE"
 				snapshot.RightPressed = command.Direction == "DROITE"
-				if len(active.Trailers) == 0 {
-					snapshot.PlannedAngleReason = "Aucune remorque configurée"
-				} else if axle, compatible := trailerCompatible(active.Trailers[0]); compatible {
+				selectedPreview, selectedForPreview := selectedPhysicalTrailer(active)
+				if !selectedForPreview {
+					snapshot.PlannedAngleReason = "Sélectionne la configuration de la remorque attelée dans Diagnostic (Original.13)."
+				} else if axle, compatible := trailerCompatible(selectedPreview); compatible {
 					speedValid := observedTelemetry.Connected && !observedTelemetry.Paused &&
 						now.Sub(lastTelemetryAt) < time.Second
 					speed := 0.0
@@ -646,9 +668,10 @@ func startSteeringRuntime(s *server) func() {
 			profileMatched := oneTrailer &&
 				(active.MatchKey == "" || strings.EqualFold(active.MatchKey, observedTelemetry.Trailers[0].ID))
 			var physicalAxle runtimeAxle
-			axlesCompatible := len(active.Trailers) == 1
+			physicalTrailer, selected := selectedPhysicalTrailer(active)
+			axlesCompatible := selected
 			if axlesCompatible {
-				physicalAxle, axlesCompatible = trailerCompatible(active.Trailers[0])
+				physicalAxle, axlesCompatible = trailerCompatible(physicalTrailer)
 			}
 			conditions := experimentalPhysicalConditions{
 				ExplicitResearchOptIn: physicalResearchOptIn,
@@ -661,6 +684,8 @@ func startSteeringRuntime(s *server) func() {
 			}
 			allowed := allowExperimentalPhysics(conditions)
 			reasons := physicalGateReasons(conditions,bridge != nil,snapshot.PlannedAngleValid)
+			if !selected {reasons=append(reasons,"CONFIG_REMORQUE_A_SELECTIONNER")}
+			if selected && !axlesCompatible {reasons=append(reasons,"ESSIEUX_AVEC_ANGLES_SENS_OU_RATIOS_DIFFERENTS")}
 			if bridge != nil && allowed && snapshot.PlannedAngleValid {
 				if normalized, ok := normalizedPhysicalAngle(plannedAngle, physicalAxle.MaxAngle); ok {
 					if err := bridge.publish(true, 0, normalized); err == nil {
