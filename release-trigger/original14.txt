@@ -8,3 +8,5 @@ Scope:
 - Safe updater and DLL install; user consent and existing profiles preserved.
 - Standalone installer mock completed successfully in GitHub Actions for Original.14.
 Ship only after Go/Windows/UI/native DLL/installer checks all succeed; actual angle calibration still needs user test in ATS.
+
+Release-check retry: preserve exact original Studio app.js byte-for-byte, update inherited Original.13 UI verification for Original.14 association selector. Keep original GUI test strict.
