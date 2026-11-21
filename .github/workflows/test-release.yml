@@ -5,12 +5,27 @@ on:
   push:
     branches:
       - cargo-pulse-approved
+  pull_request:
+    branches:
+      - main
 
 permissions:
   contents: write
 
 jobs:
+  compile-check:
+    if: github.event_name == 'pull_request'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Vérifier la compilation de l'interface
+        run: dotnet build src/EssieuPilot/EssieuPilot.csproj --configuration Release -p:BuildNumber=5
+
   build-and-release:
+    if: github.event_name == 'push'
     runs-on: windows-latest
     steps:
       - name: Récupérer le code source
