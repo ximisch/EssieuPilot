@@ -31,6 +31,18 @@
     move('.settings',trailers);
     move('.controls',inputs);
     move('.visualize',viewer);
+    // Keep the original save/import/export actions available even though
+    // the old header is visually replaced by the Steel Vector cockpit.
+    const tools=document.createElement('div');
+    tools.className='sv-action-tools';
+    for(const [label,action] of [['＋ Nouvelle remorque','add-trailer'],
+                                  ['⇩ Importer','import'],['⇧ Exporter','export'],
+                                  ['▣ Enregistrer','save']]){
+      const button=document.createElement('button');button.type='button';
+      button.className=action==='save'?'btn btn-primary':'btn btn-ghost';
+      button.dataset.action=action;button.textContent=label;tools.append(button);
+    }
+    trailers.append(tools);
     const axlePage=page('axles');
     if(axlePage)axlePage.setAttribute('aria-hidden','true');
     const titles={dashboard:'Tableau de bord',trailers:'Mes remorques',
