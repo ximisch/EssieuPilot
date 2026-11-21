@@ -71,3 +71,51 @@ func TestOriginal15NeverReportsAckAsPhysicalSteering(t *testing.T) {
   t.Fatalf("ACK cannot mean physics validated: %+v",d.report.LastInGame)
  }
 }
+
+func TestOriginal20PreservesBothDirectionSamplesAndSignedPackets(t *testing.T) {
+ destination:=filepath.Join(t.TempDir(),"direction-bidirectional.json")
+ recorder:=newPhysicalDiagnosticRecorderAt(destination)
+ now:=time.Date(2026,11,21,20,30,0,0,time.UTC)
+ conditions:=allPhysicalConditions()
+ left:=inputLinkSnapshot{
+  ATSRunning:true, ATSForeground:true,ManualArmed:true,IPCReady:true,
+  PhysicalPacketSent:true,PhysicalCallbackAck:true,
+  HeldDirection:"GAUCHE",PlannedAngleDegrees:-13,
+  PhysicalPacketNormalized:-.216667,PhysicalDetectedTrailerID:"ats.test.trailer",
+ }
+ recorder.observe(now,left,conditions,nil,1)
+ right:=left
+ right.HeldDirection="DROITE"
+ right.PlannedAngleDegrees=14
+ right.PhysicalPacketNormalized=.233333
+ recorder.observe(now.Add(time.Second),right,conditions,nil,1)
+ if recorder.report.LastWithLeftInput==nil || recorder.report.LastWithRightInput==nil {
+  t.Fatal("both directions must be retained independently")
+ }
+ if recorder.report.LastWithLeftInput.NormalizedIPCAngle>=0 ||
+    recorder.report.LastWithRightInput.NormalizedIPCAngle<=0 {
+  t.Fatalf("signed IPC incorrectly recorded: left=%+v right=%+v",recorder.report.LastWithLeftInput,recorder.report.LastWithRightInput)
+ }
+ if recorder.report.LastWithLeftInput.ATSDetectedTrailerID !=
+    recorder.report.LastWithRightInput.ATSDetectedTrailerID {
+  t.Fatal("comparison must refer to the same trailer")
+ }
+ focusLost:=right
+ focusLost.ATSForeground=false
+ focusLost.HeldDirection=""
+ recorder.observe(now.Add(2*time.Second),focusLost,conditions,nil,1)
+ focusLost.ATSRunning=false
+ recorder.observe(now.Add(3*time.Second),focusLost,conditions,nil,0)
+ raw,err:=os.ReadFile(destination)
+ if err!=nil {t.Fatal(err)}
+ var loaded physicalDiagnosticReport
+ if err:=json.Unmarshal(raw,&loaded);err!=nil {t.Fatal(err)}
+ if loaded.LastWithLeftInput==nil || loaded.LastWithRightInput==nil {
+  t.Fatal("focus or exit erased the side-by-side evidence")
+ }
+ // Starting a new ATS game session clears stale comparisons.
+ recorder.observe(now.Add(4*time.Second),left,conditions,nil,1)
+ if recorder.report.LastWithRightInput!=nil {
+  t.Fatal("right evidence from a previous ATS session was retained")
+ }
+}
