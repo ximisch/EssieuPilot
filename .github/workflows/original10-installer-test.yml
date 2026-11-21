@@ -56,6 +56,7 @@ jobs:
           & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $script -Action Install -GamePath $game -PackageDir $package -StateDir $state -ConsentPath $consent -TestSkipGameHash
           if($LASTEXITCODE -eq 0){throw 'Unowned DLL was replaced'}
           Write-Host 'PASS: first install, explicit opt-in, no overwrites, removal and foreign plugin protection'
+          exit 0 # Expected rejection tests leave LASTEXITCODE=1: clear for CI after assertions
       - name: Test Inno Setup compilation with mock DLL only (never distribute)
         shell: pwsh
         run: |
