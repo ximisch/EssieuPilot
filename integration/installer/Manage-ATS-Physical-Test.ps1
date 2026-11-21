@@ -21,6 +21,11 @@ $knownManualOriginal12='06f7e7a06e9b29d40ca4ac69f9af3babd4536995cbafca69d266c128
 # manually rather than through EssieuPilot's own managed installer.
 $knownManualOriginal13='26accf51c187f0ac39f17f78e7526c2f865aa41e71fd9919d914212e1acd2f4e'
 $knownManualOriginal14='0255614aa5414ee4b8830d9535b4bdf6d389e3860ac8fdb3c514bfbdb15af998'
+# Exact official GitHub Release DLL SHA-256 (manual installations only).
+# SHA migration never permits an unknown, modified or third-party plugin.
+$knownManualOriginal15='93a7af37c4dbe05963b081d134bb82a4dfdeb9d19f31269bdd39056e45b36715'
+$knownManualOriginal17='761d2d4cbf97eadd09b31a9d0b924d18a2735b82f29a66604eb9bcabeb9b1212'
+$knownManualOriginal19='e2a666010bd5a6905a064505fc0c72e06c65eb8704331bf41602dd122815910a'
 if(!$StateDir){$StateDir=Join-Path $env:LOCALAPPDATA 'EssieuPilot\ATS-Physical-Test'}
 if(!$ConsentPath){$ConsentPath=Join-Path $env:APPDATA 'EssieuPilot-OriginalTest\physical-test-consent.txt'}
 $record=Join-Path $StateDir 'installed.json'
@@ -113,12 +118,13 @@ try{
   if($file.PSIsContainer -or ($file.Attributes -band [IO.FileAttributes]::ReparsePoint)){throw 'Fichier cible non régulier'}
   $currentHash=sha $target
   $knownManualMigration=($Action -eq 'Install' -and $null -eq $old -and
-    ($currentHash -ceq $knownManualOriginal10 -or $currentHash -ceq $knownManualOriginal11 -or $currentHash -ceq $knownManualOriginal12 -or $currentHash -ceq $knownManualOriginal13 -or $currentHash -ceq $knownManualOriginal14))
+    ($currentHash -ceq $knownManualOriginal10 -or $currentHash -ceq $knownManualOriginal11 -or $currentHash -ceq $knownManualOriginal12 -or $currentHash -ceq $knownManualOriginal13 -or $currentHash -ceq $knownManualOriginal14 -or
+     $currentHash -ceq $knownManualOriginal15 -or $currentHash -ceq $knownManualOriginal17 -or $currentHash -ceq $knownManualOriginal19))
   if(-not $knownManualMigration -and
      ($null -eq $old -or $currentHash -cne [string]$old.sha256)){
     throw 'DLL existante non gérée/modifiée : aucune écriture autorisée'
   }
-  if($knownManualMigration){Write-Host 'Migration sécurisée : ancienne DLL officielle Original.10/11/12/13/14 manuelle reconnue par son SHA-256'}
+  if($knownManualMigration){Write-Host 'Migration sécurisée : DLL officielle manuelle reconnue par empreinte SHA-256 publiée'}
  }
  if($Action -eq 'Remove'){
   if($old){
