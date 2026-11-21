@@ -297,7 +297,18 @@ func analogFromDevices(p runtimeProfile, devices []device) float64 {
 // A release build is always safe by default. R&D-specific command delivery
 // requires both an explicitly customized build and an explicit runtime opt-in.
 // Never set this to "true" in the public update or installer pipeline.
-var physicalResearchBuildMode = "false"
+var physicalResearchBuildMode = "true"
+
+// Experimental Original.10 only. The installer never enables test steering
+// automatically: the user must explicitly choose the solo crash-risk task.
+// The consent marker belongs to this isolated test, NOT stable EssieuPilot.
+func physicalTestConsent() bool {
+  roaming, err := os.UserConfigDir()
+  if err != nil || roaming == "" { return false }
+  path := filepath.Join(roaming, "EssieuPilot-OriginalTest", "physical-test-consent.txt")
+  content, err := os.ReadFile(path)
+  return err == nil && strings.TrimSpace(string(content)) == "I_ACCEPT_CRASH_RISK"
+}
 
 // Original.7 input routing: re-read the saved active profile every 250ms.
 // Uses the same mapping format as the real physical runtime: KEY:* and
@@ -306,7 +317,7 @@ func startSteeringRuntime(s *server) func() {
 	// Only a manually launched R&D executable with this *exact* opt-in may
 	// send an experimental steering command. Never enable in release builds
 	// before ATS binary offsets and actual wheel movement are verified.
-	physicalResearchOptIn := physicalResearchBuildMode == "true" && os.Getenv("ESSIEUPILOT_UNSAFE_ATS162_TEST") == "I_ACCEPT_CRASH_RISK"
+	physicalResearchOptIn := physicalResearchBuildMode == "true" && physicalTestConsent()
 	bridge, bridgeErr := newPhysicalSteeringBridge()
 	if bridgeErr != nil {
 		log.Printf("EssieuPilot IPC preparation unavailable: %v", bridgeErr)
@@ -474,9 +485,9 @@ func startSteeringRuntime(s *server) func() {
 				PhysicalDLLSDKAccepted: gameRunning && lastDLLProbe.Recognized,
 				PhysicalDLLGameVersion: lastDLLProbe.GameVersion,
 				PhysicalDLLProbeMessage: lastDLLProbe.Reason,
-				PhysicalValidationStatus: "Chargement DLL vérifiable en jeu ; offsets ATS 1.62 et direction physique toujours non validés.",
+				PhysicalValidationStatus: "Original.10 R&D : DLL ATS 1.62.2.2 détectable ; mouvement physique et Convoi non validés.",
 				DLLConfirmed:           false,
-				StatusMessage: "Diagnostic DLL et consigne calculée. Aucun braquage physique ATS autorisé avant validation.",
+				StatusMessage: "Original.10 essai : DLL physique en expérimentation, solo seulement, aucun mouvement garanti.",
 			}
 			if !foreground {
 				// ATS lost focus: do not read input from another application.
