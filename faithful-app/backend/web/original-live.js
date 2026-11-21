@@ -139,6 +139,15 @@
           ' % · autorisé ' + Number(c.analog_authorized_percent || 0).toFixed(1) +
           ' % · changements autorisés gauche=' + (c.analog_left_count || 0) +
           ', droite=' + (c.analog_right_count || 0);
+        const physical = 'DLL physique : ' +
+          (c.physical_validation_status || 'Non validée dans ATS');
+        const plan = c.planned_angle_valid ?
+          'Angle prévu HORS JEU : ' + Number(c.planned_angle_degrees || 0).toFixed(2) +
+            '° · ' + (c.planned_angle_reason || 'Non appliqué') :
+          'Angle prévu : indisponible — ' + (c.planned_angle_reason || 'ATS hors jeu');
+        const speed = c.observed_speed_valid ?
+          'Vitesse ATS mesurée : ' + Number(c.observed_speed_kmh || 0).toFixed(1) + ' km/h' :
+          'Vitesse ATS indisponible (pas de recentrage calculé)';
         const lastAccepted = c.last_authorized_command ?
           c.last_authorized_command + (c.last_authorized_time ?
             ' à ' + c.last_authorized_time.slice(11,19) : '') :
@@ -157,6 +166,7 @@
           '\nDirection actuelle : ' + held +
           '\n' + analog +
           '\nDernière commande autorisée : ' + lastAccepted +
+          '\n' + plan + '\n' + speed + '\n' + physical +
           '\nAppuis bruts détectés (y compris INACTIF, diagnostic seul) : ' + counts +
           '\n' + last + '\nHistorique : ' + recent +
           '\nATTENTION : aucun ordre de direction physique envoyé à ATS dans Original.7.' +
