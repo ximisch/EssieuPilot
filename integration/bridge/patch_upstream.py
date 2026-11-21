@@ -11,6 +11,7 @@ core=root/'src/core.cpp'
 game=root/'src/main.cpp'
 assert all(p.is_file() for p in [src,head,core,game])
 shutil.copyfile(here/'EssieuPilotBridge.hpp',root/'src/EssieuPilotBridge.hpp')
+shutil.copyfile(here/'ATS162ExactBuildGate.hpp',root/'src/ATS162ExactBuildGate.hpp')
 def change(s,a,b):
     if s.count(a)!=1: raise ValueError(f"Expected once, found {s.count(a)}: {a[:70]!r}")
     return s.replace(a,b,1)
@@ -111,7 +112,7 @@ c=change(c,'        ImGui::NewFrame();',
          '        ImGui::NewFrame();\n        if (auto tracker=ep_tracker.lock()) tracker->ensure_bridge_hook();')
 core.write_text(c,encoding='utf-8')
 m=game.read_text(encoding='utf-8-sig')
-m=change(m,'#include "scssdk.h"', '#include "scssdk.h"\n#include <cstring>\n#include <amtrucks/scssdk_ats.h>\n#include "EssieuPilotBridge.hpp"')
+m=change(m,'#include "scssdk.h"', '#include "scssdk.h"\n#include <cstring>\n#include <amtrucks/scssdk_ats.h>\n#include "EssieuPilotBridge.hpp"\n#include "ATS162ExactBuildGate.hpp"')
 m=change(m,'    auto* init_params = static_cast< const scs_telemetry_init_params_v100_t* >( params );',
 '''    if (params == nullptr || (version != SCS_TELEMETRY_VERSION_1_01 && version != SCS_TELEMETRY_VERSION_1_00))
         return SCS_RESULT_unsupported;
@@ -122,7 +123,7 @@ m=change(m,'    auto* init_params = static_cast< const scs_telemetry_init_params
         SCS_GET_MAJOR_VERSION(init_params->common.game_version)!=1 ||
         SCS_GET_MINOR_VERSION(init_params->common.game_version)!=62)
         return SCS_RESULT_unsupported;
-    HANDLE bridge=OpenFileMappingW(FILE_MAP_READ,FALSE,L"Local\\EssieuPilotSteeringV1");
+    // Refuse unconditionally any unrecognized patch revision of ATS 1.62.\n    if (!ep_ats162::exactKnownBuild()) return SCS_RESULT_unsupported;\n    HANDLE bridge=OpenFileMappingW(FILE_MAP_READ,FALSE,L"Local\\EssieuPilotSteeringV1");
     if(!bridge)return SCS_RESULT_unsupported;
     CloseHandle(bridge);
     // Read-only evidence of DLL initialization in the matching game.
