@@ -1,11 +1,15 @@
-name: EssieuPilot R&D - compile physical bridge (NO RELEASE)
+name: EssieuPilot Original.8 R&D - DLL SDK probe, Go diagnostics, IPC (NO RELEASE)
 
 on:
   push:
-    branches: ['development/ats-integration']
+    branches: ['development/ats-integration', 'development/original8-physical']
     paths:
       - '.github/workflows/steering-reference-build.yml'
       - 'integration/bridge/**'
+      - 'faithful-app/backend/physical_probe*'
+      - 'faithful-app/backend/steering_runtime_windows.go'
+      - 'faithful-app/backend/input_link.go'
+      - 'faithful-app/backend/web/original-live.js'
   workflow_dispatch:
 
 permissions:
@@ -18,6 +22,25 @@ jobs:
     steps:
       - name: Checkout EssieuPilot source
         uses: actions/checkout@v4
+
+      - name: Go 1.23 for Original.8 read-only SDK probe tests
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.23.2'
+
+      - name: Validate Windows backend and read-only DLL probe parser
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          Push-Location faithful-app/backend
+          try {
+            go test -count=1 ./...
+            if($LASTEXITCODE -ne 0){ throw 'Original.8 Windows backend/probe tests failed' }
+            go build -o ../../essieu-backend-rnd.exe .
+            if($LASTEXITCODE -ne 0){ throw 'Original.8 Windows backend compilation failed' }
+          } finally {Pop-Location}
+          node --check faithful-app/backend/web/original-live.js
+          if($LASTEXITCODE -ne 0){ throw 'Diagnostic JavaScript invalid' }
 
       - name: Checkout pinned MIT steering reference (NOT a production DLL)
         uses: actions/checkout@v4
@@ -38,6 +61,8 @@ jobs:
           if (-not $src.Contains('set_individual_steering_fn_')) {throw 'No physical steering reference function found'}
           if (-not $src.Contains('steering_advance_hook')) {throw 'No game automatic steering lock hook found'}
           if (-not (Test-Path upstream-ts-extra/LICENSE.md)) {throw 'Missing license'}
+          $probe=Get-Content -Raw integration/bridge/EssieuPilotBridge.hpp
+          if (-not $probe.Contains('announceSdkReady') -or -not $probe.Contains('EssieuPilotProbeV8')) {throw 'Read-only ATS probe missing'}
           Write-Host 'Reference code: manually steerable trailer unit, NOT a validated per-axle implementation.'
           Write-Host 'Compiled DLL must NOT be distributed or installed until ATS 1.62 offsets and crash safety are tested.'
 
@@ -50,6 +75,7 @@ jobs:
           if (-not $patched.Contains('epbridge::read')) { throw 'Physical IPC bridge was not applied' }
           $entry = Get-Content -Raw upstream-ts-extra/src/main.cpp
           if (-not $entry.Contains('SCS_GET_MINOR_VERSION')) { throw 'ATS version gate missing' }
+          if (-not $entry.Contains('epbridge::announceSdkReady')) { throw 'Read-only probe announcement not injected into DLL initialization' }
           Write-Host 'Patched physical trailer bridge from pinned MIT source (R&D only).'
 
       - name: Configure Windows x64 native plugin
@@ -85,6 +111,7 @@ jobs:
           New-Item -ItemType Directory -Force 'research-report' | Out-Null
           @'
           This is a STATIC compilation experiment only.
+          Original.8: SDK load/version read-only probe added; it does NOT validate ATS physical steering.
           Source: https://github.com/dariowouters/ts-extra-utilities
           Commit: 41b307496960732571de8e43100adba75cd115a1
           License: MIT (upstream LICENSE.md)
