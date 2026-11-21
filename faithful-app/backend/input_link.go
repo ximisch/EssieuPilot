@@ -53,6 +53,10 @@ type inputLinkSnapshot struct {
 	LastInput              string `json:"last_input"`
 	LastEventTime          string `json:"last_event_time"`
 	PhysicalControlEnabled bool   `json:"physical_control_enabled"`
+	PhysicalDLLLoaded      bool   `json:"physical_dll_loaded"`
+	PhysicalDLLSDKAccepted bool   `json:"physical_dll_sdk_accepted"`
+	PhysicalDLLGameVersion string `json:"physical_dll_game_version"`
+	PhysicalDLLProbeMessage string `json:"physical_dll_probe_message"`
 	PhysicalValidationStatus string `json:"physical_validation_status"`
 	PlannedAngleDegrees    float64 `json:"planned_angle_degrees"`
 	PlannedAngleValid      bool    `json:"planned_angle_valid"`
