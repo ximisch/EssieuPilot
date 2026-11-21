@@ -1,1 +1,3 @@
 EssieuPilot Original20 Steel Vector. Release: separate left/right IPC evidence + protected DLL upgrade, no speculative ATS physics alterations. Trigger full Windows CI, installer and native DLL.
+
+Relance contrôlée : correction de l'assertion de version du test HTTP Windows. Aucun changement de physique ou de DLL.
