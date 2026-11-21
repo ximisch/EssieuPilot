@@ -229,3 +229,27 @@ body.original16 .ep16-menu-card:nth-child(5){
  body.original16 .ep16-home-bottom{min-height:0!important}
  body.original16 .ep16-home-footer{margin-bottom:9px!important}
 }
+
+
+/* Screenshot QA #2: baked labels in thumbnail photographs must never appear
+   behind live button labels. Isolate thumbnail artwork to the far-right edge. */
+body.original16 .ep16-menu-card{
+ background:#062532!important;
+ isolation:isolate;
+}
+body.original16 .ep16-menu-card:before{
+ content:'';position:absolute;inset:0;
+ clip-path:inset(0 0 0 76%);
+ background-size:cover;background-position:right center;
+ opacity:.86;z-index:0;pointer-events:none;
+}
+body.original16 .ep16-menu-card:nth-child(1):before{background-image:url('/feature_1.jpg')}
+body.original16 .ep16-menu-card:nth-child(2):before{background-image:url('/feature_4.jpg')}
+body.original16 .ep16-menu-card:nth-child(3):before{background-image:url('/feature_2.jpg')}
+body.original16 .ep16-menu-card:nth-child(4):before{background-image:url('/feature_3.jpg')}
+body.original16 .ep16-menu-card:nth-child(5):before{background-image:url('/feature_0.jpg')}
+body.original16 .ep16-menu-card:after{
+ content:'';position:absolute;inset:0;pointer-events:none;z-index:0;
+ background:linear-gradient(90deg,transparent 54%,#06253257 73%,#06253209 100%);
+}
+body.original16 .ep16-menu-card>*{position:relative;z-index:1}
