@@ -68,6 +68,44 @@ std::atomic<std::uint64_t> g_appliedNegative{0};
 std::atomic<std::uint64_t> g_appliedPositive{0};
 std::atomic<int> g_lastAppliedMilli{0};
 std::atomic<std::uint64_t> g_eventFrames{0};
+// Original21: read-only telemetry evidence for multiplayer research.
+// A nonzero game-time offset is evidence; ZERO does NOT prove Solo.
+constexpr wchar_t kConvoyProbeName[] = L"Local\\EssieuPilotConvoyProbeV1";
+constexpr std::uint32_t kConvoyMagic = 0x45504331; // EPC1
+#pragma pack(push,1)
+struct ConvoyProbePacket {
+    std::uint32_t magic, version, seq_begin, flags;
+    std::int32_t offset;
+    std::uint64_t tick_ms;
+    std::uint32_t seq_end;
+};
+#pragma pack(pop)
+static_assert(sizeof(ConvoyProbePacket)==32,"Convoy probe ABI mismatch");
+HANDLE g_convoyMap = nullptr;
+ConvoyProbePacket* g_convoyView = nullptr;
+std::atomic<std::uint32_t> g_convoySequence{0};
+std::atomic<bool> g_multiplayerChannelSeen{false};
+std::atomic<std::int32_t> g_lastMultiplayerOffset{0};
+
+void publishConvoyProbe() {
+    if (!g_convoyView) return;
+    const auto seq = g_convoySequence.fetch_add(2, std::memory_order_relaxed) + 2;
+    g_convoyView->seq_begin = seq | 1u;
+    MemoryBarrier();
+    g_convoyView->magic = kConvoyMagic;
+    g_convoyView->version = 1;
+    const auto multiplayer = g_possibleConvoy.load(std::memory_order_relaxed);
+    g_convoyView->flags =
+        (g_multiplayerChannelSeen.load(std::memory_order_relaxed) ? 1u : 0u) |
+        (multiplayer ? 2u : 0u) | (multiplayer ? 4u : 0u);
+    g_convoyView->offset = g_lastMultiplayerOffset.load(std::memory_order_relaxed);
+    g_convoyView->tick_ms = GetTickCount64();
+    MemoryBarrier();
+    g_convoyView->seq_end = seq;
+    MemoryBarrier();
+    g_convoyView->seq_begin = seq;
+}
+
 
 void say(const scs_log_type_t type, const char* msg)
 {
@@ -211,6 +249,7 @@ void SCSAPIFUNC onFrame(const scs_event_t event, const void* const,
         g_paused.store(false, std::memory_order_relaxed);
     if (event != SCS_TELEMETRY_EVENT_frame_end ||
         g_shuttingDown.load(std::memory_order_relaxed)) return;
+    publishConvoyProbe();
 
     // Log counters from the official SDK callback, never from the unverified
     // physics hook's possibly different engine thread. Every ~300 frames.
@@ -270,12 +309,17 @@ void SCSAPIFUNC onFrame(const scs_event_t event, const void* const,
 void SCSAPIFUNC onMultiplayer(const scs_string_t, const scs_u32_t,
                              const scs_value_t* const value, const scs_context_t)
 {
-    if (value && value->type == SCS_VALUE_TYPE_s32 &&
-        value->value_s32.value != 0)
-    {
-        g_possibleConvoy.store(true, std::memory_order_relaxed);
-        say(SCS_LOG_TYPE_warning,
-            "EssieuPilot: multiplayer time offset detected; physics output disabled (no Convoy support yet).");
+    if (value && value->type == SCS_VALUE_TYPE_s32) {
+        const auto offset = value->value_s32.value;
+        g_multiplayerChannelSeen.store(true, std::memory_order_relaxed);
+        g_lastMultiplayerOffset.store(offset, std::memory_order_relaxed);
+        // Once detected, this session stays locked for the safety of other
+        // players' trailer objects. Restart ATS before returning to Solo.
+        if (offset != 0 && !g_possibleConvoy.exchange(true, std::memory_order_relaxed)) {
+            say(SCS_LOG_TYPE_warning,
+                "EssieuPilot Original21: multiplayer time offset seen; physical steering suspended until ATS restart. Remote trailer ownership is not validated.");
+        }
+        publishConvoyProbe();
     }
 }
 
@@ -351,6 +395,9 @@ SCSAPI_RESULT scs_telemetry_init(const scs_u32_t version,
     }
     g_paused.store(true);
     g_possibleConvoy.store(false);
+    g_multiplayerChannelSeen.store(false);
+    g_lastMultiplayerOffset.store(0);
+    g_convoySequence.store(0);
     g_shuttingDown.store(false);
     g_hookEnabled.store(false);
     g_hookCallbacks.store(0);
@@ -394,6 +441,14 @@ SCSAPI_RESULT scs_telemetry_init(const scs_u32_t version,
         g_minhookInitialized = false;
         return SCS_RESULT_generic_error;
     }
+    g_convoyMap = CreateFileMappingW(INVALID_HANDLE_VALUE, nullptr, PAGE_READWRITE,
+        0, sizeof(ConvoyProbePacket), kConvoyProbeName);
+    if (g_convoyMap) {
+        g_convoyView = static_cast<ConvoyProbePacket*>(
+            MapViewOfFile(g_convoyMap, FILE_MAP_WRITE, 0, 0, sizeof(ConvoyProbePacket)));
+        if (!g_convoyView) { CloseHandle(g_convoyMap); g_convoyMap = nullptr; }
+    }
+    publishConvoyProbe();
     epbridge::announceSdkReady(1, 62);
     say(SCS_LOG_TYPE_warning,
         "EssieuPilot: experimental 1.62.2.2 DLL loaded; physics inactive until explicit test consent + fresh IPC.");
@@ -412,6 +467,8 @@ SCSAPI_VOID scs_telemetry_shutdown(void)
         (void)MH_Uninitialize();
         g_minhookInitialized = false;
     }
+    if (g_convoyView) { UnmapViewOfFile(g_convoyView); g_convoyView = nullptr; }
+    if (g_convoyMap) { CloseHandle(g_convoyMap); g_convoyMap = nullptr; }
     g_originalAdvance = nullptr;
     g_applyWheels = nullptr;
     g_hookAddress = nullptr;
