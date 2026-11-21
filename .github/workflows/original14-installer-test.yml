@@ -1,0 +1,136 @@
+name: EssieuPilot Original.14 — test automatic DLL installer only (no release)
+
+on:
+  push:
+    branches: ['development/original14-angle-auto-association']
+    paths:
+      - 'installer/EssieuPilot-Original.iss'
+      - 'integration/installer/Manage-ATS-Physical-Test.ps1'
+      - '.github/workflows/original14-installer-test.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  installer-mock:
+    runs-on: windows-2022
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test DLL installation, remove, consent and protection of foreign plugins
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference='Stop'
+          $work=Join-Path $env:RUNNER_TEMP 'EP-Physical-MOCK'
+          $game=Join-Path $work 'American Truck Simulator'
+          $mods=Join-Path $game 'bin/win_x64/plugins'
+          $state=Join-Path $work 'state'
+          $consent=Join-Path $work 'consent/physical-test-consent.txt'
+          $package=Join-Path $work 'payload'
+          New-Item -ItemType Directory -Force $mods,$state,$package|Out-Null
+          [IO.File]::WriteAllBytes((Join-Path $game 'bin/win_x64/amtrucks.exe'),[Text.Encoding]::ASCII.GetBytes('MOCK ATS EXE'))
+          $other=Join-Path $mods 'other-plugin.dll'
+          [IO.File]::WriteAllBytes($other,[Text.Encoding]::ASCII.GetBytes('DO NOT CHANGE OTHER PLUGINS'))
+          $otherHash=(Get-FileHash $other -Algorithm SHA256).Hash
+          $dll=Join-Path $package 'EssieuPilotATS.dll'
+          [IO.File]::WriteAllBytes($dll,[Text.Encoding]::ASCII.GetBytes('MOCK physical DLL for installer tests only'))
+          $sha=(Get-FileHash $dll -Algorithm SHA256).Hash.ToLowerInvariant()
+          @{schema=1;game='ats';game_series='1.62';module_version='original.14-ci-mock';files=@(@{name='EssieuPilotATS.dll';sha256=$sha})}|
+            ConvertTo-Json -Depth 6|Set-Content (Join-Path $package 'module-manifest.json') -Encoding UTF8
+          $script='integration/installer/Manage-ATS-Physical-Test.ps1'
+          & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $script -Action Install -GamePath $game -PackageDir $package -StateDir $state -ConsentPath $consent -TestSkipGameHash
+          if($LASTEXITCODE -ne 0){throw 'First install failed'}
+          $target=Join-Path $mods 'EssieuPilotATS.dll'
+          if((Get-FileHash $target -Algorithm SHA256).Hash.ToLowerInvariant() -ne $sha -or (Test-Path $consent)){throw 'Unexpected DLL install or opt-in state'}
+          [IO.File]::WriteAllBytes($target,[Text.Encoding]::ASCII.GetBytes('A THIRD PARTY MODIFIED THE DLL'))
+          & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $script -Action Install -GamePath $game -PackageDir $package -StateDir $state -ConsentPath $consent -TestSkipGameHash
+          if($LASTEXITCODE -eq 0){throw 'Failed to reject modified DLL'}
+          [IO.File]::WriteAllBytes($target,[IO.File]::ReadAllBytes($dll))
+          & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $script -Action Install -AllowPhysicalTest -GamePath $game -PackageDir $package -StateDir $state -ConsentPath $consent -TestSkipGameHash
+          if($LASTEXITCODE -ne 0 -or -not(Test-Path $consent)){throw 'Explicit consent not enabled'}
+          # Original.14 updates must keep an opt-in already granted explicitly,
+          # without requiring the installer checkbox to be re-ticked.
+          & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $script -Action Install -GamePath $game -PackageDir $package -StateDir $state -ConsentPath $consent -TestSkipGameHash
+          if($LASTEXITCODE -ne 0 -or -not(Test-Path $consent)) {throw 'Original.14 update incorrectly revoked prior explicit user consent'}
+          Write-Host 'PASS: explicit consent survives an Original.14 upgrade, but first install is disabled by default'
+          & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $script -Action Remove -GamePath $game -StateDir $state -ConsentPath $consent
+          if($LASTEXITCODE -ne 0 -or (Test-Path $target) -or (Test-Path $consent)){throw 'Failed to remove owned files'}
+          if((Get-FileHash $other -Algorithm SHA256).Hash -ne $otherHash){throw 'Foreign plugin changed'}
+          [IO.File]::WriteAllBytes($target,[Text.Encoding]::ASCII.GetBytes('UNOWNED SDK DLL'))
+          & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $script -Action Install -GamePath $game -PackageDir $package -StateDir $state -ConsentPath $consent -TestSkipGameHash
+          if($LASTEXITCODE -eq 0){throw 'Unowned DLL was replaced'}
+          Write-Host 'PASS: first install, explicit opt-in, no overwrites, removal and foreign plugin protection'
+
+          # Regression against the actual failed user setup:
+          # custom Steam folder with spaces (e.g. D:\Program Files (x86)\Steam)
+          # + manually copied Original.10 official DLL, with no installer record.
+          $steamRoot=Join-Path $work 'Program Files (x86)\Steam'
+          $steamGame=Join-Path $steamRoot 'steamapps\common\American Truck Simulator'
+          $steamMods=Join-Path $steamGame 'bin\win_x64\plugins'
+          New-Item -ItemType Directory -Force $steamMods | Out-Null
+          [IO.File]::WriteAllBytes((Join-Path $steamGame 'bin\win_x64\amtrucks.exe'),
+            [Text.Encoding]::ASCII.GetBytes('MOCK ATS ON D CUSTOM STEAM'))
+          $original10=Join-Path $work 'Original10Official'
+          New-Item -ItemType Directory -Force $original10 | Out-Null
+          gh run download 44898502297 --repo $env:GITHUB_REPOSITORY --name 'EssieuPilot-Original10-ATS162-DLL-experimental' --dir $original10
+          if($LASTEXITCODE -ne 0){throw 'Original.10 official old DLL download failed'}
+          $oldDll=Join-Path $original10 'EssieuPilotATS.dll'
+          if((Get-FileHash $oldDll -Algorithm SHA256).Hash.ToLowerInvariant() -ne 'a43a25738e0f07e0d58ca1331d009412490a146863ac8366d9baded7d0e837c3'){
+            throw 'Old manually installed DLL hash mismatched'}
+          Copy-Item -LiteralPath $oldDll -Destination (Join-Path $steamMods 'EssieuPilotATS.dll')
+          $registry='HKCU:\Software\Valve\Steam'
+          $hadRegistry=Test-Path $registry
+          $oldProperty=$null
+          try{
+            if($hadRegistry){$oldProperty=(Get-ItemProperty -LiteralPath $registry -Name SteamPath -ErrorAction SilentlyContinue).SteamPath}
+            New-Item -Path $registry -Force | Out-Null
+            New-ItemProperty -Path $registry -Name SteamPath -Value $steamRoot -PropertyType String -Force | Out-Null
+            $state2=Join-Path $work 'custom-steam-state'
+            $consent2=Join-Path $work 'custom-steam-consent.txt'
+            # No -GamePath: must auto-discover exact folder from Steam registry.
+            & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $script -Action Install -PackageDir $package -StateDir $state2 -ConsentPath $consent2 -TestSkipGameHash
+            if($LASTEXITCODE -ne 0){throw 'D Program Files (x86) Steam autodetection or old official DLL migration failed'}
+            $copied=Join-Path $steamMods 'EssieuPilotATS.dll'
+            if((Get-FileHash $copied -Algorithm SHA256).Hash.ToLowerInvariant() -ne $sha){throw 'Custom Steam DLL not replaced with new release'}
+            if(-not(Test-Path (Join-Path $state2 'installed.json'))){throw 'Missing managed install record'}
+            & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $script -Action Remove -StateDir $state2 -ConsentPath $consent2 -TestSkipGameHash
+            if($LASTEXITCODE -ne 0 -or (Test-Path $copied)){throw 'Automatic custom Steam install was not cleanly removable'}
+            Write-Host 'PASS: automatic Steam autodetection, official manually copied Original.10 migration, and rollback'
+          }finally{
+            if($hadRegistry){
+              if($null -ne $oldProperty){Set-ItemProperty -LiteralPath $registry -Name SteamPath -Value $oldProperty}
+              else{Remove-ItemProperty -LiteralPath $registry -Name SteamPath -ErrorAction SilentlyContinue}
+            }else{Remove-Item -LiteralPath $registry -Recurse -Force -ErrorAction SilentlyContinue}
+          }
+          exit 0 # Expected rejection tests leave LASTEXITCODE=1: clear for CI after assertions
+      - name: Test Inno Setup compilation with mock DLL only (never distribute)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $iscc=Join-Path ([Environment]::GetFolderPath('ProgramFilesX86')) 'Inno Setup 6/ISCC.exe'
+          if(-not(Test-Path $iscc)){
+            choco install innosetup -y --no-progress
+            if($LASTEXITCODE -ne 0){throw 'Inno Setup installation failed'}
+          }
+          $base=Join-Path $env:RUNNER_TEMP 'EP-MOCK-INNO'
+          $app=Join-Path $base 'app'
+          $payload=Join-Path $base 'payload'
+          $dest=Join-Path $base 'out'
+          New-Item -ItemType Directory -Force $app,$payload,$dest|Out-Null
+          [IO.File]::WriteAllBytes((Join-Path $app 'EssieuPilot.exe'),[Text.Encoding]::ASCII.GetBytes('MOCK app'))
+          [IO.File]::WriteAllBytes((Join-Path $app 'EssieuPilotBackend.exe'),[Text.Encoding]::ASCII.GetBytes('MOCK backend'))
+          [IO.File]::WriteAllBytes((Join-Path $payload 'EssieuPilotATS.dll'),[Text.Encoding]::ASCII.GetBytes('MOCK DLL'))
+          [IO.File]::WriteAllText((Join-Path $payload 'module-manifest.json'),'{}')
+          $env:EP_PUBLISH_DIR=$app
+          $env:EP_OUT_DIR=$dest
+          $env:EP_APP_VERSION='2.0.10'
+          $env:EP_VALIDATED_DLL_PAYLOAD=''
+          $env:EP_RND_PHYSICS_PAYLOAD=$payload
+          & $iscc 'installer/EssieuPilot-Original.iss'
+          if($LASTEXITCODE -ne 0){throw 'Experimental Inno DLL installer not compilable'}
+          if(-not(Test-Path (Join-Path $dest 'Installer_EssieuPilot.exe'))){throw 'Missing unified installer'}
+          Write-Host 'PASS: Original UI in-app updater can deliver automatic DLL installer with opt-in'
