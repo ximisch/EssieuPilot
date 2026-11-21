@@ -1,4 +1,4 @@
-# EssieuPilot Original.11 : installation/retrait gérés de la DLL expérimentale.
+# EssieuPilot Original.12 : installation/retrait gérés de la DLL expérimentale.
 # Jamais de remplacement d'une DLL tiers ou mod non possédé par EssieuPilot.
 param(
  [ValidateSet('Install','Remove','Status')][string]$Action='Status',
@@ -13,6 +13,9 @@ $name='EssieuPilotATS.dll'
 # Public Original.10 standalone DLL, published Nov 21, 2026. Only this
 # known old SHA is eligible for a safe one-time manual-to-managed migration.
 $knownManualOriginal10='a43a25738e0f07e0d58ca1331d009412490a146863ac8366d9baded7d0e837c3'
+# Official Original.11 standalone DLL. Both exact public SHAs are eligible
+# for a one-time manual-to-managed migration; unknown DLLs remain protected.
+$knownManualOriginal11='e509e758afd5999d097186e755218c37c84b63f1fe07a0b8d72c8e8f9e0c37df'
 if(!$StateDir){$StateDir=Join-Path $env:LOCALAPPDATA 'EssieuPilot\ATS-Physical-Test'}
 if(!$ConsentPath){$ConsentPath=Join-Path $env:APPDATA 'EssieuPilot-OriginalTest\physical-test-consent.txt'}
 $record=Join-Path $StateDir 'installed.json'
@@ -105,12 +108,12 @@ try{
   if($file.PSIsContainer -or ($file.Attributes -band [IO.FileAttributes]::ReparsePoint)){throw 'Fichier cible non régulier'}
   $currentHash=sha $target
   $knownManualMigration=($Action -eq 'Install' -and $null -eq $old -and
-    $currentHash -ceq $knownManualOriginal10)
+    ($currentHash -ceq $knownManualOriginal10 -or $currentHash -ceq $knownManualOriginal11))
   if(-not $knownManualMigration -and
      ($null -eq $old -or $currentHash -cne [string]$old.sha256)){
     throw 'DLL existante non gérée/modifiée : aucune écriture autorisée'
   }
-  if($knownManualMigration){Write-Host 'Migration sécurisée : DLL Original.10 manuelle reconnue par son SHA-256'}
+  if($knownManualMigration){Write-Host 'Migration sécurisée : ancienne DLL officielle Original.10/11 manuelle reconnue par son SHA-256'}
  }
  if($Action -eq 'Remove'){
   if($old){
@@ -129,7 +132,7 @@ try{
  if($m.schema -ne 1 -or $m.game -ne 'ats' -or $m.game_series -ne '1.62' -or
     @($m.files).Count -ne 1 -or [string]$m.files[0].name -cne $name -or
     [string]$m.files[0].sha256 -cnotmatch '^[0-9a-f]{64}$' -or
-    [string]$m.module_version -notmatch 'original\.11' -or
+    [string]$m.module_version -notmatch 'original\.12' -or
     (sha $src) -cne [string]$m.files[0].sha256){throw 'Paquet DLL invalide ou non vérifié SHA-256'}
  New-Item -ItemType Directory -Path $plugindir,$StateDir -Force|Out-Null
  $backup=Join-Path $StateDir ('rollback-'+[guid]::NewGuid().ToString('N'))
@@ -145,7 +148,17 @@ try{
   if($AllowPhysicalTest){
    New-Item -ItemType Directory -Path (Split-Path $ConsentPath -Parent) -Force|Out-Null
    Set-Content -LiteralPath $ConsentPath -Value 'I_ACCEPT_CRASH_RISK' -Encoding ASCII
-  }elseif(Test-Path -LiteralPath $ConsentPath){Remove-Item -LiteralPath $ConsentPath -Force}
+  }else{
+   # An update must not revoke an explicit opt-in already given by the user.
+   # Do NOT create consent on first install: new physical tests stay off by default.
+   if(Test-Path -LiteralPath $ConsentPath -PathType Leaf){
+    $consentValue=(Get-Content -LiteralPath $ConsentPath -Raw -ErrorAction Stop).Trim()
+    if($consentValue -ne 'I_ACCEPT_CRASH_RISK'){
+     throw 'Ancien fichier de consentement invalide : intervention manuelle nécessaire'
+    }
+    Write-Host 'Autorisation expérimentale explicitement donnée auparavant : conservée'
+   }
+  }
   $previousError=Join-Path $StateDir 'dernier-echec-installation.txt'
   if(Test-Path -LiteralPath $previousError){Remove-Item -LiteralPath $previousError -Force}
   Write-Host "PASS : DLL installée, empreinte vérifiée, destination : $target"
