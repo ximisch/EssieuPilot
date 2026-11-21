@@ -130,6 +130,10 @@ body.original16 .ep16-diagnostic-data span{color:#9abac6;border-bottom:1px solid
 body.original16 .ep16-diagnostic-data b{color:#dffefa;border-bottom:1px solid #18505c;padding-bottom:7px}
 body.original16 .ep16-diagnostic-logs{grid-column:1/-1;display:grid;gap:10px}
 body.original16 .ep16-diagnostic-logs .modern-diagnostic-row{margin-bottom:0;background:#051925;border:1px solid #164d59;border-radius:9px;padding:16px}
+body.original16 .ep16-diag-extra{border:1px solid #145960;background:#061b28;border-radius:10px;padding:11px;overflow:hidden}
+body.original16 .ep16-diag-extra summary{cursor:pointer;color:#b4eee4;font-size:13px;font-weight:750;padding:8px 5px;user-select:none}
+body.original16 .ep16-diag-extra[open]{display:grid;gap:10px}
+body.original16 .ep16-diag-extra .modern-diagnostic-row{overflow-wrap:anywhere;font-size:12px;white-space:normal}
 body.original16 .modern-page[data-page=diagnostics] .device-section-moved{grid-column:1/-1;border-color:#135861}
 
 /* 6. Updates: no change to GitHub API or installer flow. */
