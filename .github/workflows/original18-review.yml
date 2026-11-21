@@ -9,6 +9,8 @@ on:
       - 'faithful-app/backend/main.go'
       - 'faithful-app/backend/original_updates.go'
       - '.github/workflows/original18-review.yml'
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 permissions:
   contents: read
