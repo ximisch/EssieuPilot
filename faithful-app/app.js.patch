@@ -1,0 +1,21 @@
+--- a/backend/web/app.js
++++ b/backend/web/app.js
+@@ -559,7 +559,17 @@
+     if(data)telemetryTrailerKey=nextKey;
+     window.EssieuPilotTelemetry=t;
+     if(typeof window.refreshEssieuTelemetry==='function')window.refreshEssieuTelemetry(t,telemetryMatchText);
+-  } catch(e){telemetry=null;window.EssieuPilotTelemetry=null;}
++  } catch(e){
++    // La DLL peut être arrêtée/rechargée pendant la partie : ne jamais
++    // laisser « ATS connecté » ou une ancienne remorque à l'écran.
++    telemetry=null;
++    telemetryTrailerKey='';
++    telemetryMatchText='En attente de télémétrie';
++    window.EssieuPilotTelemetry=null;
++    if(typeof window.refreshEssieuTelemetry==='function'){
++      window.refreshEssieuTelemetry({connected:false,speed_kmh:0,trailers:[],note:'Connexion à la télémétrie perdue : '+e.message},telemetryMatchText);
++    }
++  }
+ }
+ setInterval(pollTelemetry,450);
+ pollTelemetry();

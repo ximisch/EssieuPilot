@@ -1,0 +1,4 @@
+EssieuPilot Original.18
+Interface approuvée bleu nuit, turquoise et orange.
+Compiler uniquement la base fidèle Original.17, sans modifier les DLL ATS existantes.
+Tests de régression obligatoires avant publication.

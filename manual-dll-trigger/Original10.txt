@@ -1,0 +1,4 @@
+Publication manuelle de la DLL experimentale Original.10 demandee apres constat: l'installateur automatique n'a pas copie la DLL dans ATS.
+Source: workflow build success 44898502297
+Artifact SHA256 A43A25738E0F07E0D58CA1331D009412490A146863AC8366D9BADED7D0E837C3
+Safety: test SOLO ATS 1.62.2.2 only, opt-in explicite, aucune preuve du braquage physique ni du mode Convoi.

@@ -1,0 +1,9 @@
+EssieuPilot Original.17 user-approved update trigger — 2026-11-21.
+Reason: Original.16 visual layout differed greatly from reference. First and second real Windows Edge screenshots captured and reviewed before release.
+Original.17: full-width user-approved lowboy reference hero graphic (embedded at ep17_reference_hero.webp); no baked duplicated version in logo; 6 graphic tiles with clipping to suppress source artwork text; live ATS status + steering statuses top right; live statistics, quick actions and footer.
+The 6 navigable pages retain the fixed left sidebar and per-page scroll; the dashboard is full width to match the approved visual. Application name remains EssieuPilot with version only under Updates/About.
+Feature: Mes remorques → Supprimer le profil. Confirm explicit irreversible deletion, prevent deletion of final profile, save immediately, restore data and selection on save failure; unrelated profiles unaffected.
+DO NOT claim pixel-perfect 1:1 without Windows user testing. Native ATS 1.62.2.2 experimental solo controls remain unchanged; no Convoi validation; protect unknown DLLs and require experimental consent.
+Must pass all Windows Go, WebP HTTP service, JavaScript syntax, GUI form, DLL C++ x64, installer mock and SHA-256 release checks before publishing.
+
+CI retry: corrected exact French rollback wording in static QA; image preview already rendered in Microsoft Edge.

@@ -1,0 +1,44 @@
+name: Prepare stage-1 configurable input bridge from verified prototype (regression fixed)
+on:
+  push:
+    branches: ['development/original-ui-port']
+    paths:
+      - '.github/workflows/import-steering-step1.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  integrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.23.2'
+      - name: Import reference IPC and safe runtime
+        run: |
+          set -euo pipefail
+          python3 faithful-app/bridge/import_controller.py
+          if grep -F 'bridge.publish(true' faithful-app/backend/steering_runtime_windows.go; then
+            echo "Unsafe packet must never be enabled during stage 1"
+            exit 1
+          fi
+          grep -F 'epUser32.NewProc("GetAsyncKeyState")' faithful-app/backend/steering_runtime_windows.go
+          grep -F 'bridge.publish(false,0,0)' faithful-app/backend/steering_runtime_windows.go
+      - name: Compile and test Linux and Windows Go controller
+        run: |
+          set -euo pipefail
+          cd faithful-app/backend
+          gofmt -w steering*.go input_link*.go
+          go test ./...
+          GOOS=windows GOARCH=amd64 go test -c -o /tmp/essieupilot-windows-tests.exe .
+          test -s /tmp/essieupilot-windows-tests.exe
+      - name: Save controller sources in development branch
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add faithful-app/backend/steering*.go faithful-app/backend/input_link*.go
+          git commit -m 'feat(original.3): port dynamic saved bindings, Windows input polling and neutral DLL IPC'
+          git push origin HEAD:development/original-ui-port

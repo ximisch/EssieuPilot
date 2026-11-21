@@ -1,0 +1,107 @@
+name: EssieuPilot Original.18 — validation interface et fonctions conservées
+on:
+  push:
+    branches: ['development/original18-approved-interface']
+    paths:
+      - 'faithful-app/backend/web/original18.css'
+      - 'faithful-app/backend/web/original18.js'
+      - 'faithful-app/backend/web/index.html'
+      - 'faithful-app/backend/main.go'
+      - 'faithful-app/backend/original_updates.go'
+      - '.github/workflows/original18-review.yml'
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  regressions:
+    runs-on: windows-2022
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.23.2'
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Verify Original.17 foundation preserved
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          foreach($f in @('app.js','modern.js','original-live.js','original16-ui.js','steering_logic.js','styles.css','original16.css','original17.css')) {
+            & node --check "faithful-app/backend/web/$f" 2>&1 | Out-Null
+            if($LASTEXITCODE -ne 0 -and $f.EndsWith('.js')){throw "JS broken: $f"}
+          }
+          & node --check faithful-app/backend/web/original18.js
+          if($LASTEXITCODE -ne 0){throw 'Original18 JS invalid'}
+          $html=[IO.File]::ReadAllText('faithful-app/backend/web/index.html')
+          if(-not $html.Contains('original18.css')){throw 'Original18 stylesheet missing'}
+          $go=[IO.File]::ReadAllText('faithful-app/backend/main.go')
+          foreach($v in @('original18.css','original18.js','2.0.0-original.18')){
+            if(-not $go.Contains($v)){throw "Original18 not served: $v"}
+          }
+          $ui=[IO.File]::ReadAllText('faithful-app/backend/web/original16-ui.js')
+          foreach($v in @('ep16ATSStatus','ep16AxleStatus','physical_callback_ack','manual_armed','ep16SavePhysical','ep16AddPreset')){
+            if(-not $ui.Contains($v)){throw "Original17 control lost: $v"}
+          }
+          $script=[IO.File]::ReadAllText('faithful-app/backend/web/original18.js')
+          foreach($v in @('ep16ATSStatus','ep16AxleStatus','ep18-metrics','MutationObserver')){
+            if(-not $script.Contains($v)){throw "Original18 UI missing: $v"}
+          }
+      - name: Go regression tests and build
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          Push-Location faithful-app/backend
+          try {
+            go test ./...
+            if($LASTEXITCODE -ne 0){throw 'Go regression tests failed'}
+            go build -trimpath -o ../../out/EssieuPilotBackend.exe .
+            if($LASTEXITCODE -ne 0){throw 'Backend build failed'}
+          } finally { Pop-Location }
+      - name: Build Windows host
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          New-Item -ItemType Directory -Force faithful-app/host/Assets | Out-Null
+          Copy-Item faithful-app/backend/web/EssieuPilot.ico faithful-app/host/Assets/EssieuPilot.ico
+          dotnet build faithful-app/host/EssieuPilot.csproj -c Release
+          if($LASTEXITCODE -ne 0){throw 'Windows host failed'}
+      - name: Preview rendered dashboard in Edge
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $backend=(Resolve-Path out/EssieuPilotBackend.exe).Path
+          $proc=Start-Process -FilePath $backend -PassThru -RedirectStandardOutput ready-original18.txt -RedirectStandardError err-original18.txt
+          try {
+            $url=$null
+            for($i=0;$i -lt 80;$i++){
+              Start-Sleep -Milliseconds 300
+              if(Test-Path ready-original18.txt){
+                $match=Select-String -Path ready-original18.txt -Pattern '^READY http://127\.0\.0\.1:[0-9]+/' | Select-Object -First 1
+                if($match){$url=([string]$match.Line).Substring(6);break}
+              }
+              if($proc.HasExited){throw 'Backend terminated'}
+            }
+            if(-not $url){throw 'Backend not ready'}
+            foreach($asset in @('original18.css','original18.js')){
+              $res=Invoke-WebRequest -Uri ($url+$asset) -UseBasicParsing
+              if($res.StatusCode -ne 200){throw "Missing UI asset $asset"}
+            }
+            $edge=Join-Path ([Environment]::GetFolderPath('ProgramFilesX86')) 'Microsoft\Edge\Application\msedge.exe'
+            if(-not(Test-Path $edge)){$edge=Join-Path $env:ProgramFiles 'Microsoft\Edge\Application\msedge.exe'}
+            if(-not(Test-Path $edge)){throw 'Edge missing'}
+            $profile=Join-Path $env:RUNNER_TEMP 'EP18-preview'
+            $file=Join-Path $env:GITHUB_WORKSPACE 'out/original18_dashboard.png'
+            & $edge '--headless=new' '--disable-gpu' '--no-first-run' '--hide-scrollbars' "--user-data-dir=$profile" '--window-size=1366,800' "--screenshot=$file" $url 2>&1|Out-Null
+            if(-not(Test-Path $file)){throw 'No screenshot'}
+            if((Get-Item $file).Length -lt 20000){throw 'Screenshot is empty'}
+          } finally { if(-not $proc.HasExited){Stop-Process -Id $proc.Id -Force}}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: EssieuPilot-Original18-UI-Preview
+          path: out/original18_dashboard.png
+          retention-days: 7
+          if-no-files-found: error

@@ -1,0 +1,156 @@
+name: EssieuPilot Beta — compilation Windows séparée
+
+on:
+  push:
+    branches: ['beta/reconstruction-1.7.0']
+    paths:
+      - '.github/workflows/reconstruction-beta.yml'
+      - 'reconstruction/**'
+      - 'installer/EssieuPilot-Beta.iss'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 35
+    steps:
+      - name: Récupérer la branche bêta
+        uses: actions/checkout@v4
+
+      - name: Go 1.23
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.23.2'
+
+      - name: .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Restaurer les sources de reconstruction vérifiées
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $segments = Get-ChildItem 'reconstruction/beta_sources.part*.b64' | Sort-Object Name
+          if ($segments.Count -ne 9) { throw "Archive incomplète : $($segments.Count) segments, 9 attendus" }
+          $base64 = ($segments | ForEach-Object { (Get-Content -Raw $_.FullName).Trim() }) -join ''
+          $bytes = [Convert]::FromBase64String($base64)
+          [System.IO.File]::WriteAllBytes((Join-Path $pwd 'source.tar.xz'), $bytes)
+          $expected = '77c2376d6f8da59093dfdd08ecc1b8f54c7ff1db1fa0b2a6efe76c4d48a0d00b'
+          $actual = (Get-FileHash source.tar.xz -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actual -ne $expected) { throw "Archive corrompue : empreinte SHA-256 inattendue $actual" }
+          tar -xJf source.tar.xz
+          if ($LASTEXITCODE -ne 0) { throw 'Extraction tar impossible' }
+          if (-not (Test-Path 'backend/main.go')) { throw 'Source Go absente' }
+          if (-not (Test-Path 'host/Program.cs')) { throw 'Hôte Windows absent' }
+
+      - name: Récupérer les ressources officielles 1.6.2 sans les modifier
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          New-Item -Force -ItemType Directory release | Out-Null
+          gh release download v1.6.2 --repo $env:GITHUB_REPOSITORY --pattern 'Installer_EssieuPilot.exe' --dir release
+          if ($LASTEXITCODE -ne 0) { throw 'Impossible de récupérer la version officielle 1.6.2' }
+          $sha='f8bb61b07d83e4f6e9324f07972133a3efacab233b82febd66b9304961f1e29b'
+          if ((Get-FileHash release/Installer_EssieuPilot.exe -Algorithm SHA256).Hash.ToLowerInvariant() -ne $sha) { throw 'Hash officiel 1.6.2 non conforme' }
+          python recover_assets.py release/Installer_EssieuPilot.exe backend/web
+          if ($LASTEXITCODE -ne 0) { throw "Échec extraction interface" }
+          git apply --check modern.js.patch app.js.patch
+          if ($LASTEXITCODE -ne 0) { throw 'Les correctifs ne correspondent pas à la version 1.6.2' }
+          git apply modern.js.patch app.js.patch
+          if ($LASTEXITCODE -ne 0) { throw 'Application des correctifs impossible' }
+          New-Item -Force -ItemType Directory 'host/Assets' | Out-Null
+          Copy-Item backend/web/EssieuPilot.ico host/Assets/EssieuPilot.ico
+
+      - name: Tests du moteur et de la télémétrie
+        shell: pwsh
+        run: |
+          Push-Location backend
+          try {
+            go test -v ./...
+            if ($LASTEXITCODE -ne 0) { throw 'Tests Go échoués' }
+            node steering_test.js
+            if ($LASTEXITCODE -ne 0) { throw 'Test de simulation JS échoué' }
+            node ui_telemetry_test.js
+            if ($LASTEXITCODE -ne 0) { throw 'Test de connexion JS échoué' }
+          } finally { Pop-Location }
+
+      - name: Compiler moteur et fenêtre Windows
+        shell: pwsh
+        run: |
+          New-Item -Force -ItemType Directory out | Out-Null
+          Push-Location backend
+          try {
+            go build -o ../out/EssieuPilotBackend.exe .
+            if ($LASTEXITCODE -ne 0) { throw 'Échec compilation moteur' }
+          } finally { Pop-Location }
+          dotnet publish host/EssieuPilot.csproj --configuration Release --runtime win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true --output out
+          if ($LASTEXITCODE -ne 0) { throw 'Échec compilation fenêtre native' }
+          if (-not (Test-Path out/EssieuPilot.exe)) { throw 'Application hôte manquante' }
+          if (-not (Test-Path out/EssieuPilotBackend.exe)) { throw 'Moteur Windows manquant' }
+          $ico = [System.Drawing.Icon]::ExtractAssociatedIcon((Resolve-Path out/EssieuPilot.exe).Path)
+          if ($null -eq $ico) { throw 'Aucune icône Windows intégrée' }
+          $ico.Dispose()
+
+      - name: Préparer l'installateur bêta indépendant
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          choco install innosetup -y --no-progress
+          if ($LASTEXITCODE -ne 0) { throw 'Inno Setup indisponible' }
+          $iscc = Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'
+          if (-not (Test-Path $iscc)) { throw 'Compilateur Inno Setup introuvable' }
+          $env:EP_PUBLISH_DIR = (Resolve-Path 'out').Path
+          New-Item -Force -ItemType Directory output | Out-Null
+          $env:EP_OUT_DIR = (Resolve-Path 'output').Path
+          $env:EP_APP_VERSION = '1.7.0-beta.1'
+          & $iscc 'installer/EssieuPilot-Beta.iss'
+          if ($LASTEXITCODE -ne 0) { throw 'Échec installateur' }
+          $file='output/Installer_EssieuPilot_Beta.exe'
+          if (-not (Test-Path $file)) { throw 'Installateur absent' }
+          $size = (Get-Item $file).Length
+          if ($size -lt 5000000) { throw "Installateur anormalement petit : $size" }
+          $digest = (Get-FileHash $file -Algorithm SHA256).Hash.ToLowerInvariant()
+          Write-Host "Bêta créée : $size octets SHA-256=$digest"
+
+      - name: Déposer un artefact de vérification
+        uses: actions/upload-artifact@v4
+        with:
+          name: EssieuPilot-Beta-1.7.0-beta.1
+          path: output/Installer_EssieuPilot_Beta.exe
+          retention-days: 14
+
+      - name: Publier comme préversion GitHub exclusivement
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference='Stop'
+          $tag='v1.7.0-beta.1'
+          gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null
+          if ($LASTEXITCODE -eq 0) { throw "Une release $tag existe déjà, refus d'écraser son installateur" }
+          $notes = @'
+          **BÊTA EXPÉRIMENTALE — installation séparée**
+          
+          - Interface EssieuPilot reconstruite à partir des ressources de la 1.6.2 ; fenêtre Windows native et icône dans la barre des tâches.
+          - Profils bêta séparés dans %APPDATA%\EssieuPilot-Beta ; la 1.6.2 reste installée et ses profils sont seulement lus pour une copie initiale.
+          - Simulation et réglages par essieu ; lecture expérimentale de télémétrie compatible **SCS Telemetry Hub** (DLL tierce non incluse) pour vitesse et identification des remorques.
+          - **Pas de commande physique réelle des essieux ATS**, pas de support Convoi validé, aucune reconnaissance garantie des essieux directeurs.
+          - Compilation et tests automatisés sous Windows réussis ; exécution dans le vrai ATS à confirmer par l'utilisateur.
+          - Aucun pilote ou DLL n'est installé dans ATS par cette bêta.
+          - Le téléchargement se fait sur la page GitHub de cette préversion : la mise à jour automatique de la 1.6.2 ne détecte pas les préversions.
+          - Programme non signé : Windows SmartScreen peut afficher un avertissement.
+          '@
+          gh release create $tag 'output/Installer_EssieuPilot_Beta.exe' --repo $env:GITHUB_REPOSITORY --title 'EssieuPilot 1.7.0-beta.1 — bêta de reconstruction' --prerelease --notes $notes
+          if ($LASTEXITCODE -ne 0) { throw 'Publication GitHub échouée' }
+          gh release view $tag --repo $env:GITHUB_REPOSITORY

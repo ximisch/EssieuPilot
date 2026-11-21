@@ -1,0 +1,56 @@
+name: EssieuPilot 1.6.3 RC2 - alternative ZIP download
+on:
+  push:
+    branches: ['development/ats-integration']
+    paths:
+      - '.github/workflows/installer-zip-fallback.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish-zip:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Download validated RC2 installer from its GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p payload
+          gh release download v1.6.3-rc.2 --repo "$GITHUB_REPOSITORY" \
+            --pattern 'Installer_EssieuPilot_1.6.3_Essai.exe' --dir payload
+          echo '393ac5eeaee0ddf648b987e323755f1332b032a0ccf4e222f63e5e8b3c15971c  payload/Installer_EssieuPilot_1.6.3_Essai.exe' | sha256sum --check
+          cat > payload/LISEZ-MOI-TELECHARGEMENT.txt <<'TXT'
+          EssieuPilot 1.6.3 RC2 - test de detection ATS
+
+          1. Extraire ce ZIP dans un dossier de votre choix.
+          2. Executer Installer_EssieuPilot_1.6.3_Essai.exe.
+          3. Lancer « EssieuPilot - essai ATS » depuis le menu Demarrer.
+          4. Verifier dans la zone de notification Windows pres de l'horloge le statut ATS.
+          5. Lancer puis fermer American Truck Simulator pour observer les changements.
+
+          Ne pas copier de DLL ATS pour le premier essai.
+          La version officielle 1.6.2 et les profils utilisateurs restent inchanges.
+          RC2 est une preversion non validee dans le vrai jeu.
+          TXT
+      - name: Create and verify ZIP containing the installer itself
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd payload
+          zip -9 ../EssieuPilot_1.6.3_RC2_Installateur_ZIP.zip Installer_EssieuPilot_1.6.3_Essai.exe LISEZ-MOI-TELECHARGEMENT.txt
+          cd ..
+          unzip -t EssieuPilot_1.6.3_RC2_Installateur_ZIP.zip
+          unzip -p EssieuPilot_1.6.3_RC2_Installateur_ZIP.zip Installer_EssieuPilot_1.6.3_Essai.exe | sha256sum | grep '^393ac5eeaee0ddf648b987e323755f1332b032a0ccf4e222f63e5e8b3c15971c '
+      - name: Add alternate downloadable ZIP to the existing prerelease
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release upload v1.6.3-rc.2 EssieuPilot_1.6.3_RC2_Installateur_ZIP.zip --repo "$GITHUB_REPOSITORY"
+          gh release view v1.6.3-rc.2 --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' | grep -Fx 'EssieuPilot_1.6.3_RC2_Installateur_ZIP.zip'

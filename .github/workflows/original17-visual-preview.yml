@@ -1,0 +1,61 @@
+name: EssieuPilot Original.17 — REAL dashboard screenshot preview (no release)
+on:
+  push:
+    branches: ['development/original17-faithful-dashboard']
+    paths:
+      - 'release-trigger/original17-preview.txt'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  screenshot:
+    runs-on: windows-2022
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.23.2'
+      - name: Build real Windows HTTP backend
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          New-Item -ItemType Directory -Force out | Out-Null
+          Push-Location faithful-app/backend
+          try {
+            go build -trimpath -o ../../out/EssieuPilotBackend.exe .
+            if($LASTEXITCODE -ne 0){throw 'Backend compilation failed'}
+          } finally { Pop-Location }
+      - name: Render actual EssieuPilot dashboard with Microsoft Edge
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $backend=(Resolve-Path out/EssieuPilotBackend.exe).Path
+          $p=Start-Process -FilePath $backend -PassThru -RedirectStandardOutput ready-preview.txt -RedirectStandardError err-preview.txt
+          try {
+            $ready=$null
+            for($i=0;$i -lt 80;$i++){
+              Start-Sleep -Milliseconds 300
+              if(Test-Path ready-preview.txt){
+                $m=Select-String -Path ready-preview.txt -Pattern '^READY http://127\.0\.0\.1:[0-9]+/' | Select-Object -First 1
+                if($m){$ready=([string]$m.Line).Substring(6);break}
+              }
+              if($p.HasExited){throw 'Backend stopped unexpectedly'}
+            }
+            if(-not $ready){throw 'Backend did not start'}
+            $edge=Join-Path ([Environment]::GetFolderPath('ProgramFilesX86')) 'Microsoft\Edge\Application\msedge.exe'
+            if(-not(Test-Path $edge)){$edge=Join-Path $env:ProgramFiles 'Microsoft\Edge\Application\msedge.exe'}
+            if(-not(Test-Path $edge)){throw 'Microsoft Edge unavailable for visual QA'}
+            $profile=Join-Path $env:RUNNER_TEMP 'ep17-visual-profile'
+            $out=(Join-Path $env:GITHUB_WORKSPACE 'out\original17_dashboard.png')
+            & $edge '--headless=new' '--disable-gpu' '--no-first-run' '--hide-scrollbars' "--user-data-dir=$profile" '--window-size=1366,900' "--screenshot=$out" $ready 2>&1|Out-Null
+            if(-not(Test-Path $out)){throw 'Real rendered dashboard screenshot not produced'}
+            if((Get-Item $out).Length -lt 20000){throw 'Dashboard screenshot unexpectedly too small'}
+            Write-Host "PASS: Actual EssieuPilot dashboard rendered in Edge: $out"
+          } finally {if(-not $p.HasExited){Stop-Process -Id $p.Id -Force}}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: EssieuPilot-Original17-Visual-Preview
+          path: out/original17_dashboard.png
+          retention-days: 14
+          if-no-files-found: error

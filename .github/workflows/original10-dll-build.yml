@@ -1,0 +1,69 @@
+name: EssieuPilot Original.10 R&D — compile native ATS DLL (no release)
+
+on:
+  push:
+    branches: ['development/original10-physical-test']
+    paths:
+      - 'integration/physical/**'
+      - 'integration/bridge/ATS162ExactBuildGate.hpp'
+      - 'integration/bridge/EssieuPilotBridge.hpp'
+      - '.github/workflows/original10-dll-build.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  native-physical-candidate:
+    runs-on: windows-2022
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Checkout pinned reference SDK and MinHook sources
+        uses: actions/checkout@v4
+        with:
+          repository: dariowouters/ts-extra-utilities
+          ref: 41b307496960732571de8e43100adba75cd115a1
+          path: upstream-ts-extra
+          submodules: recursive
+          persist-credentials: false
+      - name: Verify safety invariants
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $s=Get-Content 'integration/physical/EssieuPilotATS.cpp' -Raw
+          $hash=Get-Content 'integration/bridge/ATS162ExactBuildGate.hpp' -Raw
+          foreach($needle in @('exactKnownBuild()','epbridge::read(0, requested)','g_possibleConvoy','g_paused','candidateTrailerObject','MH_CreateHook','MH_EnableHook','epbridge::acknowledgeApplied')) {
+            if(-not $s.Contains($needle)){throw "Missing DLL safety criterion: $needle"}
+          }
+          if(-not $hash.Contains('EXPECTED_SHA256')){throw 'Exact ATS 1.62.2.2 hash guard absent'}
+          Write-Host 'Safety checks passed: no unguarded game write outside candidate method'
+      - name: Build Windows x64 DLL
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $up=(Resolve-Path 'upstream-ts-extra').Path
+          cmake -S integration/physical -B physical-build -G 'Visual Studio 17 2022' -A x64 "-DTS_EXTRA_ROOT=$up"
+          if($LASTEXITCODE -ne 0){throw 'CMake configuration failed'}
+          cmake --build physical-build --config Release --parallel 2
+          if($LASTEXITCODE -ne 0){throw 'Native DLL compilation failed'}
+          $dll=Get-ChildItem physical-build -Recurse -File -Filter 'EssieuPilotATS.dll' | Select-Object -First 1
+          if(-not $dll){throw 'Native DLL absent'}
+          $vswhere=Join-Path ([Environment]::GetFolderPath('ProgramFilesX86')) 'Microsoft Visual Studio/Installer/vswhere.exe'
+          $vs=(& $vswhere -latest -property installationPath).Trim()
+          $dumpbin=Get-ChildItem -Path (Join-Path $vs 'VC/Tools/MSVC') -Recurse -Filter dumpbin.exe -File |
+            Where-Object {$_.FullName -match 'Hostx64\\x64'} | Select-Object -First 1
+          if(-not $dumpbin){throw 'MSVC dumpbin unavailable'}
+          $exports=(& $dumpbin.FullName /exports $dll.FullName | Out-String)
+          if(-not $exports.Contains('scs_telemetry_init') -or -not $exports.Contains('scs_telemetry_shutdown')){throw 'Missing SCS SDK plugin exports'}
+          New-Item -ItemType Directory -Force 'ci-artifacts'|Out-Null
+          Copy-Item -LiteralPath $dll.FullName 'ci-artifacts/EssieuPilotATS.dll'
+          Get-FileHash 'ci-artifacts/EssieuPilotATS.dll' -Algorithm SHA256
+          Write-Host 'R&D binary built. WARNING: game-steering ABIs unverified and solo-only.'
+      - name: Archive ONLY development artifact, not a GitHub release
+        uses: actions/upload-artifact@v4
+        with:
+          name: EssieuPilot-Original10-ATS162-DLL-experimental
+          path: ci-artifacts/EssieuPilotATS.dll
+          if-no-files-found: error
+          retention-days: 7

@@ -1,0 +1,130 @@
+name: EssieuPilot Original.18 - mise a jour officielle de l'interface
+on:
+  push:
+    branches: ['development/original18-approved-interface']
+    paths: ['release-trigger/original18.txt']
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: essieupilot-original18-release
+  cancel-in-progress: false
+jobs:
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 40
+    steps:
+      - name: Recuperer la base Original17 et les changements Original18
+        uses: actions/checkout@v4
+      - name: Installer Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.23.2'
+      - name: Installer .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Verifier les fonctions et l'identite du programme
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $path='faithful-app/backend/web/'
+          foreach($file in @('app.js','modern.js','original-live.js','original16-ui.js','original18.js','steering_logic.js')) {
+            node --check "$path$file"
+            if($LASTEXITCODE -ne 0){throw "JS erreur : $file"}
+          }
+          foreach($file in @('styles.css','steering_logic.js','logo.png','hero_reference.jpg','modern.css')) {
+            if((Get-FileHash "original-ui-reference/$file").Hash -ne (Get-FileHash "$path$file").Hash){throw "Fichier original modifie : $file"}
+          }
+          $src=[IO.File]::ReadAllText('faithful-app/backend/main.go')
+          foreach($needle in @('2.0.0-original.18','original18.css','original18.js')){
+            if(-not $src.Contains($needle)){throw "Original18 manque : $needle"}
+          }
+          $css=[IO.File]::ReadAllText('faithful-app/backend/web/original18.css')
+          $js=[IO.File]::ReadAllText('faithful-app/backend/web/original18.js')
+          if(-not $css.Contains('ep18-main-grid') -or -not $js.Contains('ep16AxleStatus')){throw 'Interface non integree'}
+          $original=[IO.File]::ReadAllText('faithful-app/backend/web/original16-ui.js')
+          foreach($needle in @('physical_callback_ack','manual_armed','ep16SavePhysical','ep16AddPreset','ep16ATSStatus','ep16AxleStatus')){
+            if(-not $original.Contains($needle)){throw "Fonction precedente perdue : $needle"}
+          }
+          if(-not ([IO.File]::ReadAllText('faithful-app/backend/original_updates.go')).Contains('func currentOriginalBuild() int { return 18 }')){throw 'Canal de mise a jour mal configure'}
+      - name: Tests unitaires et compilation Go
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          New-Item -ItemType Directory -Force 'out'|Out-Null
+          Push-Location faithful-app/backend
+          try {
+            go test ./...
+            if($LASTEXITCODE -ne 0){throw 'Tests Go echoues'}
+            go build -trimpath -o ../../out/EssieuPilotBackend.exe .
+            if($LASTEXITCODE -ne 0){throw 'Compilation Go echouee'}
+          } finally { Pop-Location }
+      - name: Compiler le logiciel Windows original
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          New-Item -ItemType Directory -Force faithful-app/host/Assets|Out-Null
+          Copy-Item faithful-app/backend/web/EssieuPilot.ico faithful-app/host/Assets/EssieuPilot.ico
+          dotnet publish faithful-app/host/EssieuPilot.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true --output out
+          if($LASTEXITCODE -ne 0){throw 'Compilation Windows echouee'}
+          & .\out\EssieuPilot.exe --ui-smoke
+          if($LASTEXITCODE -ne 0){throw 'Fenetre Windows introuvable'}
+      - name: Verification de l'interface HTTP locale
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $proc=Start-Process -FilePath (Resolve-Path 'out/EssieuPilotBackend.exe').Path -PassThru -RedirectStandardOutput ep18-ready.txt -RedirectStandardError ep18-errors.txt
+          try {
+            $url=$null
+            for($i=0;$i -lt 70;$i++) {
+              Start-Sleep -Milliseconds 300
+              if(Test-Path ep18-ready.txt) {
+                $line=Select-String -Path ep18-ready.txt -Pattern '^READY http://127\.0\.0\.1:[0-9]+/' | Select-Object -First 1
+                if($line){$url=([string]$line.Line).Substring(6);break}
+              }
+              if($proc.HasExited){throw 'Backend termine'}
+            }
+            if(-not $url){throw 'Backend ne demarre pas'}
+            foreach($asset in @('original18.css','original18.js','original16-ui.js','original17.css')){
+              $r=Invoke-WebRequest -Uri ($url+$asset) -UseBasicParsing
+              if($r.StatusCode -ne 200){throw "Actif manquant : $asset"}
+            }
+            $status=Invoke-RestMethod -Uri ($url+'api/status')
+            if($null -eq $status.game_running){throw 'Etat ATS manquant'}
+            $updates=Invoke-RestMethod -Uri ($url+'api/updates')
+            if($updates.version -ne '2.0.0-original.18'){throw 'Version incoherente'}
+          } finally {
+            if(-not $proc.HasExited){Stop-Process -Id $proc.Id -Force}
+          }
+      - name: Creer installateur app-only sans toucher aux DLL ATS
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          choco install innosetup -y --no-progress
+          if($LASTEXITCODE -ne 0){throw 'Inno Setup absent'}
+          $iscc=Join-Path ([Environment]::GetFolderPath('ProgramFilesX86')) 'Inno Setup 6\ISCC.exe'
+          New-Item -ItemType Directory -Force release|Out-Null
+          $env:EP_PUBLISH_DIR=(Resolve-Path out).Path
+          $env:EP_OUT_DIR=(Resolve-Path release).Path
+          $env:EP_APP_VERSION='2.0.18'
+          $env:EP_VALIDATED_DLL_PAYLOAD=''
+          $env:EP_RND_PHYSICS_PAYLOAD=''
+          & $iscc 'installer/EssieuPilot-Original.iss'
+          if($LASTEXITCODE -ne 0){throw 'Echec de fabrication de l installateur'}
+          if(-not(Test-Path 'release/Installer_EssieuPilot.exe')){throw 'Installateur absent'}
+          Compress-Archive -Path release/Installer_EssieuPilot.exe -DestinationPath release/EssieuPilot_Original18.zip
+          $sha=(Get-FileHash release/Installer_EssieuPilot.exe -Algorithm SHA256).Hash
+          Write-Host "INSTALLER SHA256 $sha"
+      - name: Publier EssieuPilot Original18
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference='Stop'
+          $tag='v2.0.0-original.18'
+          gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null
+          if($LASTEXITCODE -eq 0){throw 'Version deja publiee'}
+          $notes='EssieuPilot Original.18 : nouveau style bleu nuit orange turquoise pour les sept menus, donnees de connexion et essieux toujours issues des etats reels Original17, conservation des profils et commandes. Installation app-only : ne remplace ni DLL ATS ni mods .scs existants. Il sagit dune adaptation visuelle ; le panorama original de Original17 est conserve, donc la photographie exacte de la maquette ne figure pas dans ce build. Braquage physique solo et Convoi non valides.'
+          gh release create $tag release/Installer_EssieuPilot.exe release/EssieuPilot_Original18.zip --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title 'EssieuPilot - Original.18 : interface orange et turquoise' --prerelease --notes $notes
+          if($LASTEXITCODE -ne 0){throw 'Publication GitHub echouee'}

@@ -1,0 +1,88 @@
+ESSIEUPILOT 1.6.3 RC4 — DEUX VOYANTS CORRIGÉS
+====================================================
+
+CECI EST UNE PREVERSION DE VALIDATION, PAS UNE VERSION FONCTIONNELLE
+CONFIRMEE POUR LES ESSIEUX DE REMORQUE.
+
+Cette version conserve l'exécutable d'origine de la 1.6.2. Seuls
+les trois libellés techniques "1.6.2" sont remplacés par "1.6.3".
+Le nouveau contrôleur ATS s'exécute en parallèle sans WebView2 ni
+serveur EssieuPilot local. Cela évite les erreurs des bêtas 1.7.0.
+
+NOUVEAU DANS RC4 :
+- Correction d'un défaut d'affichage du panneau de la RC3.
+- Deux voyants rouges/verts dans une petite fenêtre Windows séparée
+  qui s'ouvre automatiquement avec EssieuPilot, à proximité de la fenêtre.
+  Un accès dans la barre des tâches permet de retrouver les voyants.
+  Clic droit sur l'icône près de l'horloge > Afficher les deux voyants.
+  L'interface historique n'est pas recompilée; le panneau est séparé.
+- Le diagnostic de démarrage et d'affichage est consigné dans :
+    %LOCALAPPDATA%\EssieuPilot\diagnostics\indicateurs-1.6.3-rc4.log
+- Voyant 1 : ATS EN LIGNE (vert = amtrucks.exe détecté); rouge = fermé
+  ou état indisponible. Aucun plugin de jeu n'est nécessaire.
+- Voyant 2 : PILOTAGE (vert = retour récent de la DLL depuis l'appel
+  physique de direction, sous 1,5 seconde); rouge = retour non confirmé.
+  Cela NE PROUVE PAS que les roues ont réellement braqué. Les angles
+  physiques doivent encore être testés dans ATS.
+- Les DLL expérimentales sont toujours livrées, mais leur installation
+  dans ATS reste 100 % manuelle et facultative.
+- Le voyant pilotage restera rouge si la DLL n'est pas installée,
+  inactive, si ATS est fermé, ou si aucune commande n'est acquittée.
+- Une icône de diagnostic demeure près de l'horloge Windows.
+- La version stable 1.6.2 et les profils ne sont pas modifiés.
+
+CONTENU DE CET INSTALLATEUR :
+- EssieuPilot.exe : application originale (base 1.6.2).
+- EssieuPilotController.exe : module compagnon ATS clavier/manette/joystick.
+- Plugins ATS\EssieuPilotATS.dll : contrôle physique EXPERIMENTAL.
+- Plugins ATS\scs_telemetry_hub.dll : télémétrie locale en lecture.
+- Start-EssieuPilot.ps1 : lance le compagnon et le détecteur avec l'interface.
+- Watch-ATS.ps1 : panneau des deux voyants et diagnostic sans nouvelle DLL.
+
+INSTALLATION :
+1. Garder la version 1.6.2 installée : cette édition RC installe
+   ses fichiers dans un dossier séparé.
+2. Installer et lancer via le raccourci "EssieuPilot - essai ATS".
+   Le raccourci lance le programme original et le contrôleur ensemble.
+3. Ne pas copier les DLL dans ATS pour le premier démarrage :
+   vérifier le panneau séparé aux deux voyants à côté d'EssieuPilot.
+   Lancer puis fermer ATS et observer le premier voyant.
+   Le deuxième restera rouge tant que la DLL physique ne répond pas.
+4. Ensuite, fermer ATS, faire une sauvegarde de la partie et copier
+   les deux DLL du dossier "Plugins ATS" vers le répertoire :
+       American Truck Simulator\bin\win_x64\plugins
+   Si une DLL portant le même nom existe, ne PAS l'écraser.
+   Ne pas enlever ets2la_plugin.dll, scs-telemetry.dll ou
+   scs_sdk_controller.dll. Garder Westplay retiré.
+5. Lancer EssieuPilot avec le raccourci AVANT ATS 1.62, jouer SOLO DX11,
+   atteler UNE remorque avec essieux directeurs.
+6. Commandes initiales (selon profil): F8 marche/arrêt,
+   F9 gauche, F10 droite. Consignes : 14°/s, retour 7°/s, ±35°.
+   Le contrôle physique est par REMORQUE, non par essieu.
+7. En cas de crash : fermer le jeu, sortir EssieuPilotATS.dll et
+   scs_telemetry_hub.dll du dossier plugins ATS, puis nous envoyer
+   game.log.txt et game.crash.txt.
+
+DIAGNOSTICS :
+  %LOCALAPPDATA%\EssieuPilot\diagnostics\launcher-1.6.3.log
+  %LOCALAPPDATA%\EssieuPilot\diagnostics\controller-1.6.3.log
+  %LOCALAPPDATA%\EssieuPilot\diagnostics\indicateurs-1.6.3-rc4.log
+
+IMPORTANT :
+- Le panneau rouge/vert est dessiné par un processus compagnon superposé
+  à la fenêtre originale, pour éviter de modifier l'exécutable historique.
+- Le premier voyant ne nécessite aucune DLL. Le deuxième attend un retour
+  de la DLL de direction, sans certitude sur l'angle mesuré des roues.
+- L'interface originale n'a PAS de nouvel indicateur de disponibilité
+  du braquage physique. Le contrôleur fonctionne en parallèle.
+- Les profils sont LUS dans %APPDATA%\EssieuPilot\profiles.json,
+  sans écriture automatique. Si le fichier n'est pas exploitable,
+  les touches F8/F9/F10 et paramètres de base sont utilisés en mémoire.
+- Il faut la DLL scs_telemetry_hub.dll, même si ETS2LA possède ses
+  propres DLL ; leurs informations ne sont pas compatibles.
+- Le braquage réel n'a pas encore été vérifié sur ATS 1.62 et peut
+  provoquer un crash ou être inopérant.
+- Ne pas utiliser en mode Convoi : compatibilité non validée.
+- La version officielle 1.6.2 n'est ni supprimée ni remplacée.
+- Aucun DLL n'est installé automatiquement dans ATS par ce paquet.
+- Logiciel non signé ; avertissement Windows SmartScreen possible.

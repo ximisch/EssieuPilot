@@ -1,0 +1,5 @@
+cmake_minimum_required(VERSION 3.15)
+project(EssieuPilotBridgeSmoke LANGUAGES CXX)
+add_executable(bridge_smoke ../bridge_smoke.cpp)
+target_compile_features(bridge_smoke PRIVATE cxx_std_17)
+target_include_directories(bridge_smoke PRIVATE ..)

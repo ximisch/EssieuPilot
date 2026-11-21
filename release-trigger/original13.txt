@@ -1,0 +1,6 @@
+EssieuPilot Original.13 user-authorized prerelease trigger.
+Fixes arbitrary saved trailer configuration selection (not three special-case presets), verifies only one physical attached trailer at a time, preserves unrelated profiles.
+Attempts actual physical wheel steering via two carefully gated memory-layout candidates derived from upstream TS Extra Utilities trailer source (virtual slot 73 and legacy 78), with in-game hook counters. Experimental, exact ATS 1.62.2.2 SOLO only, crash risk, motion unvalidated.
+Automatic DLL installation, SHA-256 safety and consent protections remain.
+Installer Windows regression passed: https://github.com/ximisch/EssieuPilot/actions/runs/44910495003
+Publish only after Windows Go, C++ and installer build checks succeed.
