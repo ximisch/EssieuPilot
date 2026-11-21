@@ -26,6 +26,7 @@ $knownManualOriginal14='0255614aa5414ee4b8830d9535b4bdf6d389e3860ac8fdb3c514bfbd
 $knownManualOriginal15='93a7af37c4dbe05963b081d134bb82a4dfdeb9d19f31269bdd39056e45b36715'
 $knownManualOriginal17='761d2d4cbf97eadd09b31a9d0b924d18a2735b82f29a66604eb9bcabeb9b1212'
 $knownManualOriginal19='e2a666010bd5a6905a064505fc0c72e06c65eb8704331bf41602dd122815910a'
+$knownManualOriginal20='58ff2582b9463d69528df1c7ba633a2c455c6664d93b1b012befca149e51b23e'
 if(!$StateDir){$StateDir=Join-Path $env:LOCALAPPDATA 'EssieuPilot\ATS-Physical-Test'}
 if(!$ConsentPath){$ConsentPath=Join-Path $env:APPDATA 'EssieuPilot-OriginalTest\physical-test-consent.txt'}
 $record=Join-Path $StateDir 'installed.json'
@@ -119,7 +120,7 @@ try{
   $currentHash=sha $target
   $knownManualMigration=($Action -eq 'Install' -and $null -eq $old -and
     ($currentHash -ceq $knownManualOriginal10 -or $currentHash -ceq $knownManualOriginal11 -or $currentHash -ceq $knownManualOriginal12 -or $currentHash -ceq $knownManualOriginal13 -or $currentHash -ceq $knownManualOriginal14 -or
-     $currentHash -ceq $knownManualOriginal15 -or $currentHash -ceq $knownManualOriginal17 -or $currentHash -ceq $knownManualOriginal19))
+     $currentHash -ceq $knownManualOriginal15 -or $currentHash -ceq $knownManualOriginal17 -or $currentHash -ceq $knownManualOriginal19 -or $currentHash -ceq $knownManualOriginal20))
   if(-not $knownManualMigration -and
      ($null -eq $old -or $currentHash -cne [string]$old.sha256)){
     throw 'DLL existante non gérée/modifiée : aucune écriture autorisée'
