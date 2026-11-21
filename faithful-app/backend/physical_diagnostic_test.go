@@ -14,7 +14,7 @@ func allPhysicalConditions() experimentalPhysicalConditions {
  DLLSDKProbeRecognized:true,FreshSCSTelemetry:true,
  OneAttachedTrailer:true,ActiveProfileMatched:true,CompatibleAxles:true}
 }
-func TestOriginal14GateReportsEveryBlocker(t *testing.T) {
+func TestOriginal15GateReportsEveryBlocker(t *testing.T) {
  reasons:=physicalGateReasons(experimentalPhysicalConditions{},false,false)
  if len(reasons)!=9 {t.Fatalf("want 9 blockers; got %d %v",len(reasons),reasons)}
  if len(physicalGateReasons(allPhysicalConditions(),true,true))!=0 {t.Fatal("all valid should have no blockers")}
@@ -24,8 +24,8 @@ func TestOriginal14GateReportsEveryBlocker(t *testing.T) {
  if len(v)!=1 || v[0]!="TELEMETRIE_ABSENTE_EN_PAUSE_OU_PERIMEE" {t.Fatalf("unexpected %v",v)}
 }
 
-func TestOriginal14PersistsLastFocusedGameResultAfterAltTabAndExit(t *testing.T) {
- dest:=filepath.Join(t.TempDir(),"ATS-Physical-Test","diagnostic-original14.json")
+func TestOriginal15PersistsLastFocusedGameResultAfterAltTabAndExit(t *testing.T) {
+ dest:=filepath.Join(t.TempDir(),"ATS-Physical-Test","diagnostic-original15.json")
  d:=newPhysicalDiagnosticRecorderAt(dest)
  now:=time.Date(2026,11,21,13,20,0,0,time.UTC)
  c:=allPhysicalConditions()
@@ -61,7 +61,7 @@ func TestOriginal14PersistsLastFocusedGameResultAfterAltTabAndExit(t *testing.T)
         t.Fatal("missing wheel calibration/independent axle uncertainty notice")
     }
 }
-func TestOriginal14NeverReportsAckAsPhysicalSteering(t *testing.T) {
+func TestOriginal15NeverReportsAckAsPhysicalSteering(t *testing.T) {
  d:=newPhysicalDiagnosticRecorderAt(filepath.Join(t.TempDir(),"report.json"))
  c:=allPhysicalConditions()
  snap:=inputLinkSnapshot{ATSRunning:true,ATSForeground:true,ManualArmed:true,IPCReady:true,
