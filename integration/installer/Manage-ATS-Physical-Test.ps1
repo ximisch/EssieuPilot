@@ -46,7 +46,7 @@ function game($given){
  foreach($drive in @('C:','D:','E:','F:','G:')){
   foreach($subdir in @('Program Files (x86)\Steam','Program Files\Steam',
     'Steam','SteamLibrary','Games\Steam','Games\SteamLibrary')){
-   $roots.Add((Join-Path ($drive+'\') $subdir))
+   $roots.Add($drive+'\'+$subdir) # Do not Join-Path before confirming the PSDrive exists
   }
  }
  $possible=New-Object 'System.Collections.Generic.List[string]'
