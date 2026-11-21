@@ -23,7 +23,9 @@
       <div id="sv20Input" class="sv20-observe">Lecture des commandes configurées…</div>
       <p id="sv20Autoload" class="sv20-note">Réglages automatiques : les profils déjà associés à un identifiant ATS sont rechargés sans inventer les limites physiques.</p>
       <p class="sv20-caution">Un paquet signé et un callback DLL ne prouvent pas le mouvement réel des roues. Le nombre d'essieux directeurs et leur géométrie ne sont pas déduits automatiquement du SDK ATS.</p>`;
-    page.insertBefore(block,page.firstChild);
+    const intro=page.querySelector('.modern-section-intro');
+    if(intro)intro.insertAdjacentElement('afterend',block);
+    else page.prepend(block);
     const $=id=>document.getElementById(id);
     let busy=false;
     function renderSide(side,id,detailId,expectedSign){
@@ -36,7 +38,7 @@
       const good=sent&&Math.abs(sign)>0.0005&&Math.sign(sign)===expectedSign;
       const opposite=sent&&Math.abs(sign)>0.0005&&Math.sign(sign)!==expectedSign;
       a.dataset.state=good?'ok':opposite?'reversed':'missing';
-      a.textContent=good?'Consigne envoyée':opposite?'Signe opposé':'Commande à vérifier';
+      a.textContent=good?'Consigne envoyée':opposite?'Signe opposé (inversion possible)':'Commande à vérifier';
       b.textContent='Cible '+target.toFixed(1)+'° · IPC '+(sign>0?'+':'')+sign.toFixed(3)+
         ' · '+(sent?'paquet transmis':'paquet non transmis')+
         ' · '+(side.dll_callback_ack?'callback DLL reçu (pas une preuve des roues)':'callback DLL non confirmé')+
